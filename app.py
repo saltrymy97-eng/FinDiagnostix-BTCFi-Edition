@@ -1,183 +1,137 @@
+# advanced_financial_ai.py
 import streamlit as st
-import sqlite3
 import os
 import pandas as pd
 import plotly.express as px
 from groq import Groq
-from fpdf import FPDF
 from cryptography.fernet import Fernet
+from PIL import Image
+import pytesseract
+from fpdf import FPDF
 
-# =========================
-# Page Setup
-# =========================
-st.set_page_config(page_title="Smart Liquidity AI – Dashboard", layout="wide")
-st.title("🏦 Smart Liquidity AI – Secure Dashboard")
-st.subheader("Detect Fake Profit + Loan Simulation + AI Recommendation + Encrypted Approval + PDF Report")
+# -------------------------
+# 1️⃣ Groq API Key
+# -------------------------
+API_KEY = os.getenv("GROQ_API_KEY", "PUT_YOUR_KEY_HERE")
+client = Groq(api_key=API_KEY)
 
-# =========================
-# Groq AI setup
-# =========================
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+# -------------------------
+# 2️⃣ Page setup
+# -------------------------
+st.set_page_config(page_title="Smart Financial AI", layout="wide")
+st.title("💡 Smart Financial AI - Profit Checker & Loan Simulator")
 
-# =========================
-# AES Encryption setup (Fernet)
-# =========================
-key_file = "secret.key"
-if not os.path.exists(key_file):
+# -------------------------
+# 3️⃣ Tabs
+# -------------------------
+tabs = st.tabs(["📄 Upload Report", "📊 Analysis & AI", "💰 Loan Simulator", "🔒 Encrypt Data", "📄 PDF Report"])
+
+# -------------------------
+# Tab 1: Upload Data
+# -------------------------
+with tabs[0]:
+    st.header("Upload Company Financial Report")
+    uploaded_file = st.file_uploader("Upload CSV/Excel file", type=["csv", "xlsx"])
+    uploaded_image = st.file_uploader("Or Upload an Image of the Report", type=["png","jpg","jpeg"])
+    
+    df = None
+    extracted_text = ""
+    if uploaded_file:
+        try:
+            if uploaded_file.name.endswith(".csv"):
+                df = pd.read_csv(uploaded_file)
+            else:
+                df = pd.read_excel(uploaded_file)
+            st.success("File loaded successfully!")
+            st.dataframe(df.head())
+        except Exception as e:
+            st.error(f"Error reading file: {e}")
+    
+    if uploaded_image:
+        try:
+            image = Image.open(uploaded_image)
+            st.image(image, caption="Uploaded Report", use_column_width=True)
+            extracted_text = pytesseract.image_to_string(image)
+            st.text_area("Extracted Text from Image", extracted_text, height=200)
+        except Exception as e:
+            st.error(f"Error processing image: {e}")
+
+# -------------------------
+# Tab 2: Profit Analysis + AI
+# -------------------------
+with tabs[1]:
+    st.header("🚀 AI Profit Analysis & Recommendations")
+    if st.button("Analyze Profit"):
+        try:
+            input_text = "Analyze the company financial report for fake profit and missing data."
+            if df is not None:
+                input_text += f" Data sample: {df.head().to_dict()}"
+            if uploaded_image:
+                input_text += f" Extracted text: {extracted_text}"
+            
+            response = client.responses.create(
+                model="groq/compound",
+                input=input_text
+            )
+            st.subheader("AI Recommendations")
+            st.write(response.output_text)
+            
+            # Plot example chart
+            if df is not None and 'Revenue' in df.columns and 'Expenses' in df.columns:
+                fig = px.bar(df, x=df.index, y=['Revenue', 'Expenses'], title="Revenue vs Expenses")
+                st.plotly_chart(fig, use_container_width=True)
+        except Exception as e:
+            st.error(f"AI Error: {e}")
+
+# -------------------------
+# Tab 3: Loan Simulator
+# -------------------------
+with tabs[2]:
+    st.header("💰 Loan Simulator")
+    loan_amount = st.number_input("Loan Amount", min_value=0)
+    interest_rate = st.number_input("Interest Rate (%)", min_value=0.0)
+    months = st.number_input("Repayment Months", min_value=1)
+    
+    if st.button("Simulate Loan"):
+        monthly_payment = loan_amount * (1 + interest_rate/100) / months
+        st.write(f"Monthly Payment: {monthly_payment:.2f}")
+        # Optional: simple chart
+        fig = px.line(x=list(range(1, months+1)), y=[monthly_payment]*months, labels={'x':'Month','y':'Payment'}, title="Loan Payment Schedule")
+        st.plotly_chart(fig, use_container_width=True)
+
+# -------------------------
+# Tab 4: Encrypt Data
+# -------------------------
+with tabs[3]:
+    st.header("🔒 Encrypt Sensitive Data")
     key = Fernet.generate_key()
-    with open(key_file, "wb") as f:
-        f.write(key)
-else:
-    with open(key_file, "rb") as f:
-        key = f.read()
-fernet = Fernet(key)
+    fernet = Fernet(key)
+    sample_text = st.text_area("Enter text to encrypt")
+    if st.button("Encrypt"):
+        if sample_text:
+            encrypted = fernet.encrypt(sample_text.encode())
+            st.write(encrypted)
+        else:
+            st.warning("Enter text first.")
 
-# =========================
-# Database setup
-# =========================
-conn = sqlite3.connect("companies.db")
-c = conn.cursor()
-c.execute('''CREATE TABLE IF NOT EXISTS companies
-             (id INTEGER PRIMARY KEY, name TEXT, revenue REAL, expenses REAL, cash_flow REAL, debt REAL, approval TEXT)''')
-conn.commit()
-
-# =========================
-# Company Data Input
-# =========================
-st.sidebar.header("📝 Company Data")
-company_name = st.sidebar.text_input("Company Name", "Sample Company")
-revenue = st.sidebar.number_input("Revenue", value=100000)
-expenses = st.sidebar.number_input("Expenses", value=80000)
-cash_flow = st.sidebar.number_input("Cash Flow", value=-5000)
-debt = st.sidebar.number_input("Debt", value=20000)
-
-if st.sidebar.button("💾 Save Company"):
-    encrypted_approval = fernet.encrypt("Not Approved".encode()).decode()
-    c.execute("INSERT INTO companies (name, revenue, expenses, cash_flow, debt, approval) VALUES (?,?,?,?,?,?)",
-              (company_name, revenue, expenses, cash_flow, debt, encrypted_approval))
-    conn.commit()
-    st.sidebar.success("✅ Company saved with encrypted approval")
-
-# =========================
-# Basic Analysis
-# =========================
-st.header("📈 Basic Financial Analysis")
-profit = revenue - expenses
-st.write(f"Accounting Profit: {profit}")
-st.write(f"Cash Flow: {cash_flow}")
-
-fake_profit = False
-if profit > 0 and cash_flow < 0:
-    fake_profit = True
-    st.error("⚠️ Fake Profit Detected: Positive profit but negative cash flow")
-else:
-    st.success("✅ Financial status is balanced")
-
-# =========================
-# Risk Score Calculation
-# =========================
-st.header("⚖️ Risk Assessment")
-risk_score = 0
-if fake_profit:
-    risk_score += 50
-if cash_flow < 0:
-    risk_score += 30
-if debt > revenue * 0.5:
-    risk_score += 20
-
-risk_color = "green" if risk_score < 30 else "orange" if risk_score < 70 else "red"
-st.markdown(f"<h3 style='color:{risk_color}'>Risk Score: {risk_score}/100</h3>", unsafe_allow_html=True)
-
-# =========================
-# Loan Simulation
-# =========================
-st.header("💰 Loan What-If Simulation")
-loan_amounts = st.multiselect("Select Loan Amounts", [10000,20000,30000,50000], default=[20000])
-interest_rate = st.slider("Interest Rate (%)", 0, 50, 10) / 100
-months = st.slider("Loan Duration (Months)", 1, 60, 12)
-
-simulation_results = []
-for loan in loan_amounts:
-    new_cash = cash_flow + loan
-    monthly_payment = (loan * (1 + interest_rate)) / months
-    status = "✅ Beneficial" if new_cash > 0 and monthly_payment < (revenue*0.3) else "⚠️ Risky"
-    simulation_results.append({"Loan": loan, "New Cash": new_cash, "Monthly Payment": monthly_payment, "Status": status})
-
-sim_df = pd.DataFrame(simulation_results)
-st.dataframe(sim_df)
-
-# =========================
-# Loan Chart
-# =========================
-st.header("📊 Loan Impact Chart")
-fig = px.bar(sim_df, x="Loan", y="New Cash", color="Status", text="Monthly Payment",
-             color_discrete_map={"✅ Beneficial":"green","⚠️ Risky":"red"}, title="Loan Impact on Cash Flow")
-st.plotly_chart(fig)
-
-# =========================
-# AI Recommendation
-# =========================
-st.header("🤖 AI Recommendation")
-if st.button("Run AI"):
-    prompt = f"""
-    Company Analysis:
-    Name: {company_name}
-    Revenue: {revenue}
-    Expenses: {expenses}
-    Cash Flow: {cash_flow}
-    Debt: {debt}
-
-    1. Detect Fake Profit?
-    2. Risk Score?
-    3. Does the company need a loan?
-    4. Loan simulation: {loan_amounts}
-    5. Provide short recommendation for each loan
-    """
-    try:
-        response = client.chat.completions.create(
-            messages=[{"role": "user", "content": prompt}],
-            model="llama3-8b-8192"
-        )
-        result = response.choices[0].message.content
-        st.write(result)
-
-        # Encrypt approval based on AI recommendation
-        approval_text = "Approved" if "✅ Beneficial" in result else "Not Approved"
-        encrypted_approval = fernet.encrypt(approval_text.encode()).decode()
-        c.execute("UPDATE companies SET approval=? WHERE name=?", (encrypted_approval, company_name))
-        conn.commit()
-        st.success("🔒 Loan approval updated and encrypted in database")
-    except Exception as e:
-        st.error("❌ AI connection error")
-        st.write(e)
-
-# =========================
-# PDF Report
-# =========================
-st.header("📄 Download PDF Report")
-if st.button("Generate PDF"):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=12)
-    pdf.cell(200, 10, txt=f"Company Report: {company_name}", ln=True, align="C")
-    pdf.cell(200, 10, txt=f"Accounting Profit: {profit}", ln=True)
-    pdf.cell(200, 10, txt=f"Cash Flow: {cash_flow}", ln=True)
-    pdf.cell(200, 10, txt=f"Risk Score: {risk_score}/100", ln=True)
-
-    pdf.cell(200, 10, txt="Loan Simulation Results:", ln=True)
-    for index, row in sim_df.iterrows():
-        pdf.cell(200, 10, txt=f"Loan: {row['Loan']}, New Cash: {row['New Cash']}, Monthly Payment: {row['Monthly Payment']:.2f}, Status: {row['Status']}", ln=True)
-    
-    # Include encrypted approval
-    st_c = c.execute("SELECT approval FROM companies WHERE name=?", (company_name,)).fetchone()[0]
-    pdf.cell(200, 10, txt=f"Encrypted Approval: {st_c}", ln=True)
-    
-    pdf.output("Company_Report_Secure.pdf")
-    st.success("✅ PDF Report generated with encrypted approval: Company_Report_Secure.pdf")
-
-# =========================
-# Display Saved Companies
-# =========================
-st.header("🏢 Saved Companies")
-df = pd.read_sql_query("SELECT * FROM companies", conn)
-st.dataframe(df)
+# -------------------------
+# Tab 5: Generate PDF Report
+# -------------------------
+with tabs[4]:
+    st.header("📄 PDF Report")
+    if st.button("Generate PDF"):
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", size=12)
+        pdf.cell(0, 10, "Smart Financial AI Report", ln=True, align="C")
+        pdf.ln(10)
+        if df is not None:
+            pdf.multi_cell(0, 8, df.head().to_string())
+        if uploaded_image:
+            pdf.ln(5)
+            pdf.multi_cell(0, 8, "Extracted Text from Image:")
+            pdf.multi_cell(0, 8, extracted_text)
+        pdf_file = "financial_report.pdf"
+        pdf.output(pdf_file)
+        with open(pdf_file, "rb") as f:
+            st.download_button("Download PDF", f, file_name="financial_report.pdf")

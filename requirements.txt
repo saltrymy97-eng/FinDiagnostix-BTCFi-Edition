@@ -1,2 +1,1 @@
-streamlit
-pandas
+pip install streamlit groq pandas plotly fpdf cryptography

@@ -1,137 +1,87 @@
-# advanced_financial_ai.py
+# simple_financial_ai.py
 import streamlit as st
-import os
 import pandas as pd
-import plotly.express as px
-from groq import Groq
-from cryptography.fernet import Fernet
 from PIL import Image
 import pytesseract
-from fpdf import FPDF
+from groq import Groq
 
 # -------------------------
-# 1️⃣ Groq API Key
+# 1️⃣ Groq API
 # -------------------------
-API_KEY = os.getenv("GROQ_API_KEY", "PUT_YOUR_KEY_HERE")
+API_KEY = "PUT_YOUR_KEY_HERE"
 client = Groq(api_key=API_KEY)
 
 # -------------------------
-# 2️⃣ Page setup
+# Page Setup
 # -------------------------
 st.set_page_config(page_title="Smart Financial AI", layout="wide")
-st.title("💡 Smart Financial AI - Profit Checker & Loan Simulator")
+st.title("💡 Smart Financial AI - Profit & Loan")
 
 # -------------------------
-# 3️⃣ Tabs
+# 2️⃣ Upload Report
 # -------------------------
-tabs = st.tabs(["📄 Upload Report", "📊 Analysis & AI", "💰 Loan Simulator", "🔒 Encrypt Data", "📄 PDF Report"])
+st.header("1️⃣ Upload Your Company Report")
+uploaded_file = st.file_uploader("Upload CSV/Excel", type=["csv","xlsx"])
+uploaded_image = st.file_uploader("Or Upload an Image", type=["png","jpg","jpeg"])
+df = None
+extracted_text = ""
+
+if uploaded_file:
+    if uploaded_file.name.endswith(".csv"):
+        df = pd.read_csv(uploaded_file)
+    else:
+        df = pd.read_excel(uploaded_file)
+    st.success("Report Loaded!")
+    st.dataframe(df.head())
+
+if uploaded_image:
+    image = Image.open(uploaded_image)
+    st.image(image, caption="Uploaded Image", use_column_width=True)
+    extracted_text = pytesseract.image_to_string(image)
+    st.text_area("Extracted Text", extracted_text, height=200)
 
 # -------------------------
-# Tab 1: Upload Data
+# 3️⃣ AI Analysis
 # -------------------------
-with tabs[0]:
-    st.header("Upload Company Financial Report")
-    uploaded_file = st.file_uploader("Upload CSV/Excel file", type=["csv", "xlsx"])
-    uploaded_image = st.file_uploader("Or Upload an Image of the Report", type=["png","jpg","jpeg"])
-    
-    df = None
-    extracted_text = ""
-    if uploaded_file:
-        try:
-            if uploaded_file.name.endswith(".csv"):
-                df = pd.read_csv(uploaded_file)
-            else:
-                df = pd.read_excel(uploaded_file)
-            st.success("File loaded successfully!")
-            st.dataframe(df.head())
-        except Exception as e:
-            st.error(f"Error reading file: {e}")
-    
+st.header("2️⃣ AI Profit Analysis")
+if st.button("Analyze Profit"):
+    input_text = "Analyze company report for fake profit and missing data."
+    if df is not None:
+        input_text += f" Data sample: {df.head().to_dict()}"
     if uploaded_image:
-        try:
-            image = Image.open(uploaded_image)
-            st.image(image, caption="Uploaded Report", use_column_width=True)
-            extracted_text = pytesseract.image_to_string(image)
-            st.text_area("Extracted Text from Image", extracted_text, height=200)
-        except Exception as e:
-            st.error(f"Error processing image: {e}")
-
-# -------------------------
-# Tab 2: Profit Analysis + AI
-# -------------------------
-with tabs[1]:
-    st.header("🚀 AI Profit Analysis & Recommendations")
-    if st.button("Analyze Profit"):
-        try:
-            input_text = "Analyze the company financial report for fake profit and missing data."
-            if df is not None:
-                input_text += f" Data sample: {df.head().to_dict()}"
-            if uploaded_image:
-                input_text += f" Extracted text: {extracted_text}"
-            
-            response = client.responses.create(
-                model="groq/compound",
-                input=input_text
-            )
-            st.subheader("AI Recommendations")
-            st.write(response.output_text)
-            
-            # Plot example chart
-            if df is not None and 'Revenue' in df.columns and 'Expenses' in df.columns:
-                fig = px.bar(df, x=df.index, y=['Revenue', 'Expenses'], title="Revenue vs Expenses")
-                st.plotly_chart(fig, use_container_width=True)
-        except Exception as e:
-            st.error(f"AI Error: {e}")
-
-# -------------------------
-# Tab 3: Loan Simulator
-# -------------------------
-with tabs[2]:
-    st.header("💰 Loan Simulator")
-    loan_amount = st.number_input("Loan Amount", min_value=0)
-    interest_rate = st.number_input("Interest Rate (%)", min_value=0.0)
-    months = st.number_input("Repayment Months", min_value=1)
+        input_text += f" Extracted text: {extracted_text}"
     
-    if st.button("Simulate Loan"):
-        monthly_payment = loan_amount * (1 + interest_rate/100) / months
-        st.write(f"Monthly Payment: {monthly_payment:.2f}")
-        # Optional: simple chart
-        fig = px.line(x=list(range(1, months+1)), y=[monthly_payment]*months, labels={'x':'Month','y':'Payment'}, title="Loan Payment Schedule")
-        st.plotly_chart(fig, use_container_width=True)
+    response = client.responses.create(
+        model="groq/compound",
+        input=input_text
+    )
+    st.subheader("AI Recommendations")
+    st.write(response.output_text)
 
 # -------------------------
-# Tab 4: Encrypt Data
+# 4️⃣ Loan Suggestion
 # -------------------------
-with tabs[3]:
-    st.header("🔒 Encrypt Sensitive Data")
-    key = Fernet.generate_key()
-    fernet = Fernet(key)
-    sample_text = st.text_area("Enter text to encrypt")
-    if st.button("Encrypt"):
-        if sample_text:
-            encrypted = fernet.encrypt(sample_text.encode())
-            st.write(encrypted)
-        else:
-            st.warning("Enter text first.")
+st.header("3️⃣ Loan Suggestion")
+if st.button("Suggest Loan"):
+    # Simple logic: if Cash Flow negative, suggest loan = 2*abs(Cash Flow)
+    cash_flow = 0
+    if df is not None and 'Cash Flow' in df.columns:
+        cash_flow = df['Cash Flow'].sum()
+    elif "negative cash flow" in response.output_text.lower():
+        cash_flow = -10000  # default example
+    if cash_flow < 0:
+        suggested_loan = abs(cash_flow)*2
+        st.success(f"Suggested Loan Amount: ${suggested_loan}")
+    else:
+        st.info("No loan needed, cash flow is positive.")
 
 # -------------------------
-# Tab 5: Generate PDF Report
+# 5️⃣ What-If Loan Simulator
 # -------------------------
-with tabs[4]:
-    st.header("📄 PDF Report")
-    if st.button("Generate PDF"):
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", size=12)
-        pdf.cell(0, 10, "Smart Financial AI Report", ln=True, align="C")
-        pdf.ln(10)
-        if df is not None:
-            pdf.multi_cell(0, 8, df.head().to_string())
-        if uploaded_image:
-            pdf.ln(5)
-            pdf.multi_cell(0, 8, "Extracted Text from Image:")
-            pdf.multi_cell(0, 8, extracted_text)
-        pdf_file = "financial_report.pdf"
-        pdf.output(pdf_file)
-        with open(pdf_file, "rb") as f:
-            st.download_button("Download PDF", f, file_name="financial_report.pdf")
+st.header("4️⃣ What-If Loan Simulator")
+loan_input = st.number_input("Enter Loan Amount", min_value=0)
+interest = st.number_input("Interest Rate (%)", min_value=0.0)
+months = st.number_input("Repayment Months", min_value=1)
+if st.button("Simulate Loan"):
+    monthly_payment = loan_input * (1 + interest/100)/months
+    st.write(f"Monthly Payment: ${monthly_payment:.2f}")

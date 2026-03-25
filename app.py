@@ -1,4 +1,4 @@
-# simple_financial_ai.py
+# simple_financial_ai_corrected.py
 import streamlit as st
 import pandas as pd
 from PIL import Image
@@ -6,9 +6,9 @@ import pytesseract
 from groq import Groq
 
 # -------------------------
-# 1️⃣ Groq API
+# 1️⃣ Groq API Key
 # -------------------------
-API_KEY = "PUT_YOUR_KEY_HERE"
+API_KEY = "PUT_YOUR_KEY_HERE"  # ضع مفتاح Groq الخاص بك هنا
 client = Groq(api_key=API_KEY)
 
 # -------------------------
@@ -27,50 +27,59 @@ df = None
 extracted_text = ""
 
 if uploaded_file:
-    if uploaded_file.name.endswith(".csv"):
-        df = pd.read_csv(uploaded_file)
-    else:
-        df = pd.read_excel(uploaded_file)
-    st.success("Report Loaded!")
-    st.dataframe(df.head())
+    try:
+        if uploaded_file.name.endswith(".csv"):
+            df = pd.read_csv(uploaded_file)
+        else:
+            df = pd.read_excel(uploaded_file)
+        st.success("Report Loaded!")
+        st.dataframe(df.head())
+    except Exception as e:
+        st.error(f"Error reading file: {e}")
 
 if uploaded_image:
-    image = Image.open(uploaded_image)
-    st.image(image, caption="Uploaded Image", use_column_width=True)
-    extracted_text = pytesseract.image_to_string(image)
-    st.text_area("Extracted Text", extracted_text, height=200)
+    try:
+        image = Image.open(uploaded_image)
+        st.image(image, caption="Uploaded Image", use_column_width=True)
+        extracted_text = pytesseract.image_to_string(image)
+        st.text_area("Extracted Text", extracted_text, height=200)
+    except Exception as e:
+        st.error(f"Error processing image: {e}")
 
 # -------------------------
 # 3️⃣ AI Analysis
 # -------------------------
 st.header("2️⃣ AI Profit Analysis")
 if st.button("Analyze Profit"):
-    input_text = "Analyze company report for fake profit and missing data."
-    if df is not None:
-        input_text += f" Data sample: {df.head().to_dict()}"
-    if uploaded_image:
-        input_text += f" Extracted text: {extracted_text}"
-    
-    response = client.responses.create(
-        model="groq/compound",
-        input=input_text
-    )
-    st.subheader("AI Recommendations")
-    st.write(response.output_text)
+    try:
+        input_text = "Analyze the company financial report for fake profit and missing data."
+        if df is not None:
+            input_text += f" Data sample: {df.head().to_dict()}"
+        if uploaded_image:
+            input_text += f" Extracted text: {extracted_text}"
+        
+        response = client.responses.create(
+            model="groq/compound",
+            input=input_text
+        )
+        st.subheader("AI Recommendations")
+        st.write(response.output_text)
+    except Exception as e:
+        st.error(f"AI Error: {e}")
 
 # -------------------------
 # 4️⃣ Loan Suggestion
 # -------------------------
 st.header("3️⃣ Loan Suggestion")
 if st.button("Suggest Loan"):
-    # Simple logic: if Cash Flow negative, suggest loan = 2*abs(Cash Flow)
     cash_flow = 0
     if df is not None and 'Cash Flow' in df.columns:
         cash_flow = df['Cash Flow'].sum()
-    elif "negative cash flow" in response.output_text.lower():
-        cash_flow = -10000  # default example
+    elif uploaded_image and "negative cash flow" in response.output_text.lower():
+        cash_flow = -10000  # مثال افتراضي
+    
     if cash_flow < 0:
-        suggested_loan = abs(cash_flow)*2
+        suggested_loan = abs(cash_flow) * 2
         st.success(f"Suggested Loan Amount: ${suggested_loan}")
     else:
         st.info("No loan needed, cash flow is positive.")
@@ -83,5 +92,5 @@ loan_input = st.number_input("Enter Loan Amount", min_value=0)
 interest = st.number_input("Interest Rate (%)", min_value=0.0)
 months = st.number_input("Repayment Months", min_value=1)
 if st.button("Simulate Loan"):
-    monthly_payment = loan_input * (1 + interest/100)/months
+    monthly_payment = loan_input * (1 + interest/100) / months
     st.write(f"Monthly Payment: ${monthly_payment:.2f}")

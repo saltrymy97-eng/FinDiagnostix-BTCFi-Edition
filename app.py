@@ -1,182 +1,166 @@
-import streamlit as st
-import pandas as pd
-import numpy as np
-import re
+import streamlit as st import pandas as pd from datetime import datetime
 
-# ================== PAGE CONFIG ==================
-st.set_page_config(
-    page_title="Smart Budget AI",
-    layout="wide",
-    page_icon="💳"
-)
+-------------------------
 
-# ================== STRIPE STYLE UI ==================
+Page Config
+
+-------------------------
+
+st.set_page_config( page_title="Simple Fintech Pipeline", page_icon="💳", layout="wide" )
+
+-------------------------
+
+UI Style (Simple & Clean)
+
+-------------------------
+
 st.markdown("""
+
 <style>
-
-body {
-    background-color: #0a0f1c;
+.block-container {
+    padding: 2rem;
 }
-
-.main {
-    background-color: #0a0f1c;
+.card {
+    background-color: #111827;
+    padding: 18px;
+    border-radius: 12px;
+    color: white;
+    margin-bottom: 12px;
+    border: 1px solid #1f2937;
 }
-
 .title {
-    font-size: 40px;
+    font-size: 26px;
     font-weight: 700;
-    color: #60a5fa;
+    margin-bottom: 5px;
 }
-
 .subtitle {
-    color: #94a3b8;
+    color: #9ca3af;
     margin-bottom: 20px;
 }
-
-.card {
-    background: #111827;
-    padding: 18px;
-    border-radius: 14px;
-    border: 1px solid #1f2937;
+.section {
+    margin-top: 20px;
+    margin-bottom: 10px;
+    font-size: 18px;
+    font-weight: 600;
 }
+</style>""", unsafe_allow_html=True)
 
-.metric-box {
-    background: #111827;
-    padding: 15px;
-    border-radius: 12px;
-    border: 1px solid #1f2937;
-    text-align: center;
-}
+-------------------------
 
-</style>
-""", unsafe_allow_html=True)
+Sidebar Navigation (3 Layers)
 
-# ================== HEADER ==================
-st.markdown('<div class="title">💳 Smart Budget AI</div>', unsafe_allow_html=True)
-st.markdown('<div class="subtitle">Stripe-style Financial Intelligence Dashboard</div>', unsafe_allow_html=True)
+-------------------------
 
-# ================== INPUT ==================
-col1, col2 = st.columns([2,1])
+step = st.sidebar.radio( "Pipeline Steps", ["1 - Upload Report", "2 - Classify Clients", "3 - Alerts & Insights", "4 - Recommendations", "5 - Budget"] )
+
+-------------------------
+
+Dummy Data
+
+-------------------------
+
+clients = pd.DataFrame({ "Name": ["Ali", "Sara", "Mohammed", "Lina"], "Balance": [5000, -1200, 300, -4500] })
+
+-------------------------
+
+Step 1: Upload Report
+
+-------------------------
+
+if step == "1 - Upload Report": st.markdown("<div class='title'>Upload Financial Report</div>", unsafe_allow_html=True)
+
+file = st.file_uploader("Upload CSV Report")
+
+if file:
+    st.success("File uploaded successfully")
+    st.dataframe(pd.read_csv(file))
+else:
+    st.info("Upload a file to start the pipeline")
+
+-------------------------
+
+Step 2: Client Classification
+
+-------------------------
+
+elif step == "2 - Classify Clients": st.markdown("<div class='title'>Client Classification</div>", unsafe_allow_html=True)
+
+st.markdown("### Simple Segmentation")
+
+good = clients[clients["Balance"] >= 0]
+bad = clients[clients["Balance"] < 0]
+
+col1, col2, col3 = st.columns(3)
 
 with col1:
-    text = st.text_area("Project Description", height=150)
+    st.markdown("<div class='card'>🟢 Good Clients</div>", unsafe_allow_html=True)
+    st.dataframe(good)
 
 with col2:
-    budget = st.number_input("Total Budget ($)", value=10000)
+    st.markdown("<div class='card'>🔴 Risk Clients</div>", unsafe_allow_html=True)
+    st.dataframe(bad)
 
-# ================== LAYER 1 ==================
-def layer_1(text):
-    numbers = list(map(int, re.findall(r'\d+', text)))
-    complexity = len(numbers)
+with col3:
+    st.markdown("<div class='card'>⚪ Neutral</div>")
+    st.write("No data")
 
-    keywords = ["debt", "owed", "credit", "receivable", "clients", "due"]
-    receivable_flag = any(k in text.lower() for k in keywords)
+-------------------------
 
-    return numbers, complexity, receivable_flag
+Step 3: Alerts
 
-# ================== LAYER 2 ==================
-def layer_2(budget, complexity, receivable_flag):
+-------------------------
 
-    risks = []
+elif step == "3 - Alerts & Insights": st.markdown("<div class='title'>Alerts</div>", unsafe_allow_html=True)
 
-    if budget < 5000:
-        risks.append("Low Budget Risk")
+st.warning("⚠ High risk clients detected")
+st.error("❌ Negative balances increasing")
+st.info("📊 Cash flow stable in good clients")
 
-    if complexity > 8:
-        risks.append("High Complexity Risk")
+-------------------------
 
-    if receivable_flag:
-        risks.append("Cashflow / Receivables Risk")
+Step 4: Recommendations
 
-    return risks
+-------------------------
 
-# ================== LAYER 3 ==================
-def layer_3(budget, receivable_flag):
+elif step == "4 - Recommendations": st.markdown("<div class='title'>Recommendations</div>", unsafe_allow_html=True)
 
-    categories = {
-        "Operations": 0.35,
-        "Marketing": 0.20,
-        "Development": 0.25,
-        "Emergency": 0.10,
-        "Buffer": 0.10
-    }
+st.markdown("""
+<div class='card'>
+1. Reduce exposure to high-risk clients
+</div>
+""", unsafe_allow_html=True)
 
-    df = pd.DataFrame({
-        "Category": categories.keys(),
-        "Allocation": categories.values()
-    })
+st.markdown("""
+<div class='card'>
+2. Improve collection process for debts
+</div>
+""", unsafe_allow_html=True)
 
-    df["Amount"] = df["Allocation"] * budget
+st.markdown("""
+<div class='card'>
+3. Increase credit control policies
+</div>
+""", unsafe_allow_html=True)
 
-    forecast = budget * np.random.uniform(1.2, 1.8)
+-------------------------
 
-    receivables = pd.DataFrame()
+Step 5: Budget
 
-    if receivable_flag:
-        receivables = pd.DataFrame([
-            ["Client A", budget*0.10, "Pending"],
-            ["Client B", budget*0.06, "Overdue"],
-            ["Client C", budget*0.04, "Expected"]
-        ], columns=["Client", "Amount", "Status"])
+-------------------------
 
-    return df, forecast, receivables
+elif step == "5 - Budget": st.markdown("<div class='title'>Budget Overview</div>", unsafe_allow_html=True)
 
-# ================== RUN ==================
-if st.button("Run Analysis 🚀"):
+income = 50000
+expenses = 32000
+balance = income - expenses
 
-    numbers, complexity, receivable_flag = layer_1(text)
-    risks = layer_2(budget, complexity, receivable_flag)
-    df, forecast, receivables = layer_3(budget, receivable_flag)
+col1, col2, col3 = st.columns(3)
 
-    # ================== KPI CARDS ==================
-    st.markdown("## 📊 Overview")
+with col1:
+    st.metric("Income", income)
+with col2:
+    st.metric("Expenses", expenses)
+with col3:
+    st.metric("Balance", balance)
 
-    c1, c2, c3 = st.columns(3)
-
-    with c1:
-        st.markdown(f"""
-        <div class="card">
-        <h3>💰 Budget</h3>
-        <h2>${budget:,}</h2>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with c2:
-        st.markdown(f"""
-        <div class="card">
-        <h3>📈 Forecast</h3>
-        <h2>${forecast:,.0f}</h2>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with c3:
-        st.markdown(f"""
-        <div class="card">
-        <h3>🧠 Complexity</h3>
-        <h2>{complexity}</h2>
-        </div>
-        """, unsafe_allow_html=True)
-
-    # ================== LAYERS ==================
-    st.markdown("## 🟦 Risk Analysis")
-
-    if risks:
-        for r in risks:
-            st.error(r)
-    else:
-        st.success("No major risks detected")
-
-    # ================== ALLOCATION ==================
-    st.markdown("## 📊 Budget Allocation")
-
-    st.dataframe(df, use_container_width=True)
-
-    st.bar_chart(df.set_index("Category")["Amount"])
-
-    # ================== RECEIVABLES ==================
-    st.markdown("## 🧾 Accounts Receivable")
-
-    if not receivables.empty:
-        st.dataframe(receivables, use_container_width=True)
-    else:
-        st.info("No receivables detected")
+st.progress(balance / income)

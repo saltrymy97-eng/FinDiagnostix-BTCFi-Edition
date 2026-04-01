@@ -3,149 +3,180 @@ import pandas as pd
 import numpy as np
 import re
 
-# ================= CONFIG =================
-st.set_page_config(page_title="Smart Budget AI Pro", layout="wide")
+# ================== PAGE CONFIG ==================
+st.set_page_config(
+    page_title="Smart Budget AI",
+    layout="wide",
+    page_icon="💳"
+)
 
-st.title("💰 Smart Budget AI PRO")
-st.write("3-Layer Financial AI System + Accounts Receivable Module")
+# ================== STRIPE STYLE UI ==================
+st.markdown("""
+<style>
 
-# ================= INPUT =================
-text = st.text_area("📥 Project Description (include debts / receivables if any)")
-budget = st.number_input("💵 Total Budget", value=10000)
+body {
+    background-color: #0a0f1c;
+}
 
-# ================= LAYER 1 =================
+.main {
+    background-color: #0a0f1c;
+}
+
+.title {
+    font-size: 40px;
+    font-weight: 700;
+    color: #60a5fa;
+}
+
+.subtitle {
+    color: #94a3b8;
+    margin-bottom: 20px;
+}
+
+.card {
+    background: #111827;
+    padding: 18px;
+    border-radius: 14px;
+    border: 1px solid #1f2937;
+}
+
+.metric-box {
+    background: #111827;
+    padding: 15px;
+    border-radius: 12px;
+    border: 1px solid #1f2937;
+    text-align: center;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+# ================== HEADER ==================
+st.markdown('<div class="title">💳 Smart Budget AI</div>', unsafe_allow_html=True)
+st.markdown('<div class="subtitle">Stripe-style Financial Intelligence Dashboard</div>', unsafe_allow_html=True)
+
+# ================== INPUT ==================
+col1, col2 = st.columns([2,1])
+
+with col1:
+    text = st.text_area("Project Description", height=150)
+
+with col2:
+    budget = st.number_input("Total Budget ($)", value=10000)
+
+# ================== LAYER 1 ==================
 def layer_1(text):
-
     numbers = list(map(int, re.findall(r'\d+', text)))
-
-    # simple detection for receivables keywords
-    receivable_keywords = ["debt", "owed", "credit", "receivable", "clients", "due"]
-    receivable_flag = any(word in text.lower() for word in receivable_keywords)
-
     complexity = len(numbers)
 
-    return {
-        "numbers": numbers,
-        "complexity": complexity,
-        "receivables_detected": receivable_flag
-    }
+    keywords = ["debt", "owed", "credit", "receivable", "clients", "due"]
+    receivable_flag = any(k in text.lower() for k in keywords)
 
-# ================= LAYER 2 =================
-def layer_2(budget, analysis):
+    return numbers, complexity, receivable_flag
 
-    warnings = []
+# ================== LAYER 2 ==================
+def layer_2(budget, complexity, receivable_flag):
+
+    risks = []
 
     if budget < 5000:
-        warnings.append("Low budget risk")
+        risks.append("Low Budget Risk")
 
-    if analysis["complexity"] > 10:
-        warnings.append("High project complexity")
+    if complexity > 8:
+        risks.append("High Complexity Risk")
 
-    if analysis["receivables_detected"]:
-        warnings.append("Accounts receivable detected → liquidity risk possible")
+    if receivable_flag:
+        risks.append("Cashflow / Receivables Risk")
 
-    if budget / (analysis["complexity"] + 1) < 700:
-        warnings.append("Budget efficiency is weak")
+    return risks
 
-    return warnings
+# ================== LAYER 3 ==================
+def layer_3(budget, receivable_flag):
 
-# ================= LAYER 3 =================
-def layer_3(budget, analysis):
-
-    # ===== Budget Allocation =====
     categories = {
         "Operations": 0.35,
         "Marketing": 0.20,
         "Development": 0.25,
         "Emergency": 0.10,
-        "Receivables Buffer": 0.10
+        "Buffer": 0.10
     }
 
     df = pd.DataFrame({
         "Category": categories.keys(),
-        "Ratio": categories.values()
+        "Allocation": categories.values()
     })
 
-    df["Amount"] = df["Ratio"] * budget
+    df["Amount"] = df["Allocation"] * budget
 
-    # ===== Receivables Module =====
-    receivables = []
+    forecast = budget * np.random.uniform(1.2, 1.8)
 
-    if analysis["receivables_detected"]:
-        receivables = [
-            {"Client": "Client A", "Amount": budget * 0.1, "Status": "Pending"},
-            {"Client": "Client B", "Amount": budget * 0.07, "Status": "Overdue"},
-            {"Client": "Client C", "Amount": budget * 0.05, "Status": "Expected"}
-        ]
+    receivables = pd.DataFrame()
 
-    receivables_df = pd.DataFrame(receivables) if receivables else pd.DataFrame(
-        columns=["Client", "Amount", "Status"]
-    )
+    if receivable_flag:
+        receivables = pd.DataFrame([
+            ["Client A", budget*0.10, "Pending"],
+            ["Client B", budget*0.06, "Overdue"],
+            ["Client C", budget*0.04, "Expected"]
+        ], columns=["Client", "Amount", "Status"])
 
-    # ===== Forecast =====
-    cashflow_risk = 1.0
+    return df, forecast, receivables
 
-    if analysis["receivables_detected"]:
-        cashflow_risk = 0.8
+# ================== RUN ==================
+if st.button("Run Analysis 🚀"):
 
-    forecast = budget * np.random.uniform(1.1, 1.6) * cashflow_risk
+    numbers, complexity, receivable_flag = layer_1(text)
+    risks = layer_2(budget, complexity, receivable_flag)
+    df, forecast, receivables = layer_3(budget, receivable_flag)
 
-    # ===== Recommendations =====
-    recommendations = [
-        "Focus on cash flow stability",
-        "Reduce dependency on receivables",
-        "Collect overdue payments faster",
-        "Maintain emergency reserve",
-        "Validate expenses before scaling"
-    ]
+    # ================== KPI CARDS ==================
+    st.markdown("## 📊 Overview")
 
-    return df, receivables_df, forecast, recommendations
+    c1, c2, c3 = st.columns(3)
 
-# ================= RUN PIPELINE =================
-if st.button("🚀 Run AI Financial Analysis"):
+    with c1:
+        st.markdown(f"""
+        <div class="card">
+        <h3>💰 Budget</h3>
+        <h2>${budget:,}</h2>
+        </div>
+        """, unsafe_allow_html=True)
 
-    # Layer 1
-    analysis = layer_1(text)
+    with c2:
+        st.markdown(f"""
+        <div class="card">
+        <h3>📈 Forecast</h3>
+        <h2>${forecast:,.0f}</h2>
+        </div>
+        """, unsafe_allow_html=True)
 
-    st.subheader("🟦 Layer 1: Analysis")
+    with c3:
+        st.markdown(f"""
+        <div class="card">
+        <h3>🧠 Complexity</h3>
+        <h2>{complexity}</h2>
+        </div>
+        """, unsafe_allow_html=True)
 
-    st.write("Numbers Found:", analysis["numbers"])
-    st.write("Complexity Score:", analysis["complexity"])
-    st.write("Receivables Detected:", analysis["receivables_detected"])
+    # ================== LAYERS ==================
+    st.markdown("## 🟦 Risk Analysis")
 
-    # Layer 2
-    warnings = layer_2(budget, analysis)
-
-    st.subheader("🟨 Layer 2: Risk Engine")
-
-    if warnings:
-        for w in warnings:
-            st.error(w)
+    if risks:
+        for r in risks:
+            st.error(r)
     else:
         st.success("No major risks detected")
 
-    # Layer 3
-    df, receivables_df, forecast, recommendations = layer_3(budget, analysis)
+    # ================== ALLOCATION ==================
+    st.markdown("## 📊 Budget Allocation")
 
-    st.subheader("🟩 Layer 3: Financial Planning")
+    st.dataframe(df, use_container_width=True)
 
-    col1, col2 = st.columns(2)
+    st.bar_chart(df.set_index("Category")["Amount"])
 
-    with col1:
-        st.markdown("### 📊 Budget Allocation")
-        st.dataframe(df, use_container_width=True)
+    # ================== RECEIVABLES ==================
+    st.markdown("## 🧾 Accounts Receivable")
 
-    with col2:
-        st.markdown("### 💰 Forecast")
-        st.metric("Projected Value", f"${forecast:,.0f}")
-
-    # ================= RECEIVABLES =================
-    st.subheader("🧾 Accounts Receivable")
-
-    st.dataframe(receivables_df, use_container_width=True)
-
-    # ================= RECOMMENDATIONS =================
-    st.subheader("💡 Recommendations")
-
-    for r in recommendations:
-        st.info(r)
+    if not receivables.empty:
+        st.dataframe(receivables, use_container_width=True)
+    else:
+        st.info("No receivables detected")

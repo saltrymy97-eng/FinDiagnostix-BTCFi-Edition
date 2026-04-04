@@ -7,7 +7,7 @@ from gtts import gTTS
 # --- 1. CONFIGURATION & THEME ---
 st.set_page_config(page_title="FinDiagnostix AI | Salem Al-Tamimi", layout="wide")
 
-# Modern Dark UI Styling
+# Professional Dark UI Styling
 st.markdown("""
     <style>
     .stApp { background-color: #0d1117; color: #c9d1d9; }
@@ -17,14 +17,14 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# SAFE API CONNECTION (Fetches from Secrets)
+# Secure API Connection (Fetches from Streamlit Secrets)
 if "GEMINI_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 else:
-    st.error("Error: GEMINI_API_KEY not found in Secrets. Please add it to Streamlit Settings.")
+    st.error("API Key Missing! Please add 'GEMINI_API_KEY' to your Streamlit Secrets.")
     st.stop()
 
-# Using Gemini 1.5 Flash - The fastest stable vision engine
+# Using the latest stable production model to avoid 404 errors
 model = genai.GenerativeModel('gemini-1.5-flash')
 
 def generate_voice(text):
@@ -39,7 +39,7 @@ def generate_voice(text):
 
 # --- 2. MAIN INTERFACE ---
 st.title("⚖️ FIN-DIAGNOSTIX: VISION & VOICE AUDITOR")
-st.caption("Strategic Financial Intelligence Platform | Powered by Google Gemini")
+st.caption("Strategic Financial Intelligence Platform | Developed by Salem Al-Tamimi")
 st.write("---")
 
 if "audit_report" not in st.session_state:
@@ -56,12 +56,12 @@ if uploaded_file:
         st.image(img, caption="Target Document")
         if st.button("EXECUTE AI AUDIT"):
             try:
-                with st.spinner("Gemini is analyzing the financial structure..."):
-                    # The prompt is sent directly with the image
-                    prompt = """Analyze this invoice/document. Provide: 
-                    1. A Journal Entry Table (DR/CR) in English. 
+                with st.spinner("Analyzing document structure..."):
+                    # Detailed prompt for professional output
+                    prompt = """Analyze this financial document. Provide: 
+                    1. A Journal Entry Table (Debit/Credit) in English. 
                     2. A professional accounting explanation in Arabic. 
-                    3. An Audit Risk Verdict in Arabic."""
+                    3. A final Audit Risk Verdict in Arabic."""
                     
                     response = model.generate_content([prompt, img])
                     st.session_state.audit_report = response.text
@@ -80,9 +80,9 @@ if st.session_state.audit_report:
     query = st.chat_input("Ask the Professor about this report...")
     
     if query:
-        with st.spinner("The Professor is thinking..."):
+        with st.spinner("The Professor is formulating a response..."):
             chat_context = f"Context: {st.session_state.audit_report}\n\nUser Question: {query}"
-            chat_prompt = f"{chat_context}\n\nRespond as a professional male Accounting Professor. Be brief and speak in Arabic."
+            chat_prompt = f"{chat_context}\n\nRespond briefly as a professional male Accounting Professor in Arabic."
             
             res = model.generate_content(chat_prompt)
             answer = res.text
@@ -93,4 +93,4 @@ if st.session_state.audit_report:
                 if voice_data:
                     st.audio(voice_data, format='audio/mp3')
 
-st.sidebar.info("System Status: SECURE\nEngine: Google Gemini 1.5 Flash")
+st.sidebar.info("Workshop Status: LIVE\nEngine: Google Gemini 1.5 Stable")

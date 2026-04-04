@@ -7,15 +7,20 @@ from gtts import gTTS
 
 # --- 1. INITIALIZATION ---
 st.set_page_config(page_title="FinDiagnostix AI", layout="wide")
+
+# Secure API Key Check
+if "GROQ_API_KEY" not in st.secrets:
+    st.error("Please add GROQ_API_KEY to Streamlit Secrets.")
+    st.stop()
+
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 def encode_image(image_file):
-    # Resize and optimize image quality for API
     img = Image.open(image_file)
     if img.mode in ("RGBA", "P"): img = img.convert("RGB")
     img.thumbnail((800, 800))
     buffered = io.BytesIO()
-    img.save(buffered, format="JPEG", quality=85)
+    img.save(buffered, format="JPEG", quality=90)
     return base64.b64encode(buffered.getvalue()).decode('utf-8')
 
 def play_voice(text):
@@ -40,9 +45,9 @@ if uploaded_file:
             try:
                 with st.spinner("Professor is analyzing..."):
                     base64_image = encode_image(uploaded_file)
-                    # Correct Payload Structure for Llama 3.2 Vision
+                    # UPDATED MODEL NAME HERE
                     response = client.chat.completions.create(
-                        model="llama-3.2-11b-vision-preview",
+                        model="llama-3.2-11b-vision-instant", 
                         messages=[
                             {
                                 "role": "user",
@@ -51,8 +56,7 @@ if uploaded_file:
                                     {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
                                 ]
                             }
-                        ],
-                        temperature=0.1 # Lower temperature for accuracy
+                        ]
                     )
                     st.session_state.context = response.choices[0].message.content
             except Exception as e:

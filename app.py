@@ -1,83 +1,101 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-from PIL import Image
 
-# --- Page Configuration ---
-st.set_page_config(page_title="FinDiagnostix AI - Image Scanner", page_icon="📸", layout="wide")
+# --- Professional Page Config ---
+st.set_page_config(page_title="FinDiagnostix - Academic Auditor", page_icon="⚖️", layout="wide")
 
 # --- Header Section ---
-st.title("📸 FinDiagnostix AI: Smart Invoice Scanner")
-st.markdown(f"### Coordinator: **Salem Al-Tamimi** | Accounting Dept. | Workshop Edition")
+st.title("⚖️ FinDiagnostix: The AI Professor & Senior Auditor")
+st.markdown(f"### Developed by: **Salem Al-Tamimi** | Accounting Dept. | Workshop 2026")
 st.write("---")
 
-# --- 1. Session State Initialization ---
+# --- Session State ---
 if 'ledger' not in st.session_state:
     st.session_state.ledger = []
 
-# --- 2. Logic to "Simulate" Image OCR ---
-def process_invoice_image(uploaded_file):
-    # In a real-world scenario, we use Tesseract or Google Vision API here.
-    # For the workshop, we simulate the extraction to show the "AI flow".
-    filename = uploaded_file.name.lower()
+# --- 🧠 The Academic & Audit Engine ---
+def academic_audit_engine(input_text):
+    text = input_text.lower()
+    amount_str = "".join(filter(str.isdigit, text))
+    amount = float(amount_str) if amount_str else 0
     
-    if "diesel" in filename or "fuel" in filename:
-        return {"dr": "Purchases (Fuel)", "cr": "Cash Account", "amt": 75000, "desc": "Extracted from Image: Diesel Purchase"}
-    elif "sale" in filename or "inv" in filename:
-        return {"dr": "Cash Account", "cr": "Sales Revenue", "amt": 120000, "desc": "Extracted from Image: Service Sale"}
+    # Logic 1: Purchases (Expenses)
+    if any(word in text for word in ["buy", "purchase", "diesel", "fuel"]):
+        return {
+            "dr": "Purchases (Diesel/Expenses)",
+            "cr": "Cash Account",
+            "amt": amount,
+            "professor_logic": "Since the entity purchased fuel, Expenses increased (Natural Debit) and Assets/Cash decreased (Natural Debit becomes Credit when decreasing).",
+            "audit_verdict": "✅ Valid Entry. Matches standard operational patterns.",
+            "risk": "Low"
+        }
+    
+    # Logic 2: Sales (Revenue)
+    elif any(word in text for word in ["sell", "sales", "revenue", "received"]):
+        # Special Audit Check for 'False Profit'
+        audit_note = "✅ Revenue recognized according to IFRS/GAAP."
+        risk_level = "Low"
+        if amount > 500000: # Example Threshold
+            audit_note = "⚠️ **AUDIT ALERT:** Unusually high revenue entry. Potential 'False Profit' to inflate financial position. Verify against physical delivery records."
+            risk_level = "High"
+
+        return {
+            "dr": "Cash Account",
+            "cr": "Sales Revenue",
+            "amt": amount,
+            "professor_logic": "Revenue increases (Natural Credit) and Cash increases (Natural Debit). Both sides of the equation are balanced.",
+            "audit_verdict": audit_note,
+            "risk": risk_level
+        }
+    
+    # Logic 3: Unknown / Suspicious Entry
     else:
-        # Default fallback if image name doesn't match
-        return {"dr": "Pending Classification", "cr": "Cash Account", "amt": 10000, "desc": "Manual Review Required"}
+        return {
+            "dr": "Suspense Account (Pending)",
+            "cr": "Cash Account",
+            "amt": amount,
+            "professor_logic": "The system cannot determine the debit nature. Placing in Suspense Account to keep the trial balance intact.",
+            "audit_verdict": "🔴 **FRAUD WARNING:** Transaction description is vague. High risk of 'Window Dressing' or embezzlement.",
+            "risk": "Critical"
+        }
 
-# --- 3. Sidebar: Image Upload Section ---
-st.sidebar.header("📤 Upload Invoice/Receipt")
-uploaded_file = st.sidebar.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
+# --- Sidebar Input ---
+st.sidebar.header("📥 Transaction Input")
+st.sidebar.info("Describe the event (e.g., 'Sold water for 80000')")
+user_input = st.sidebar.text_area("Entry Description:")
 
-if uploaded_file is not None:
-    # Display the uploaded image
-    image = Image.open(uploaded_file)
-    st.sidebar.image(image, caption='Uploaded Invoice', use_container_width=True)
-    
-    if st.sidebar.button("Scan & Process with AI"):
-        with st.spinner('Analyzing Image Patterns...'):
-            result = process_invoice_image(uploaded_file)
-            
-            entry = {
-                "Date": datetime.now().strftime("%H:%M"),
-                "Source": "📷 Image Scan",
-                "Description": result['desc'],
-                "Debit (DR)": result['dr'],
-                "Credit (CR)": result['cr'],
-                "Amount": float(result['amt']),
-                "Status": "✅ OCR Verified"
-            }
-            st.session_state.ledger.append(entry)
-            st.sidebar.success("Image Analyzed & Entry Generated!")
-
-# --- 4. Audit Radar ---
-st.header("🔍 Intelligent Audit Radar")
-df = pd.DataFrame(st.session_state.ledger)
-
-if not df.empty:
-    if df['Amount'].max() > 100000:
-        st.warning("⚠️ **High Risk Alert:** Large transaction detected via Image Scan.")
-    
-    # --- 5. Automated Ledger ---
-    st.header("📑 Automated Digital Ledger")
-    st.dataframe(df, use_container_width=True)
-
-    # --- 6. Financial Metrics ---
-    st.write("---")
-    c1, c2, c3 = st.columns(3)
-    total_exp = df[df['Debit (DR)'].str.contains("Purchases|Pending", na=False)]['Amount'].sum()
-    total_rev = df[df['Debit (DR)'] == "Cash Account"]['Amount'].sum()
-    
-    c1.metric("Total Expenses", f"{total_exp:,.0f} YR")
-    c2.metric("Total Revenue", f"{total_rev:,.0f} YR")
-    c3.metric("Net Cash Position", f"{total_rev - total_exp:,.0f} YR")
-else:
-    st.info("Upload an image of an invoice in the sidebar to test the AI Scanner.")
-
-st.sidebar.write("---")
-st.sidebar.caption("FinDiagnostix AI v1.2 | Image Recognition Module")
+if st.sidebar.button("Run AI Audit"):
+    if user_input:
+        analysis = academic_audit_engine(user_input)
         
+        # 1. The Professor's Explanation
+        st.subheader("👨‍🏫 The Professor's Explanation:")
+        st.info(analysis['professor_logic'])
+        
+        # 2. The Auditor's Verdict
+        st.subheader("🔍 Auditor's Verification:")
+        if analysis['risk'] == "Low":
+            st.success(analysis['audit_verdict'])
+        elif analysis['risk'] == "High":
+            st.warning(analysis['audit_verdict'])
+        else:
+            st.error(analysis['audit_verdict'])
+
+        # 3. The Official Double-Entry Journal
+        st.subheader("📑 Automated Journal Entry:")
+        journal_data = {
+            "Account Title": [analysis['dr'], analysis['cr']],
+            "Debit (DR)": [f"{analysis['amt']:,}", ""],
+            "Credit (CR)": ["", f"{analysis['amt']:,}"]
+        }
+        st.table(pd.DataFrame(journal_data))
+        
+        # Save to session history
+        st.session_state.ledger.append(analysis)
+    else:
+        st.sidebar.error("Please enter transaction details.")
+
+st.write("---")
+st.caption("FinDiagnostix AI v2.0 - Bridging Academia and Industry.")
+            

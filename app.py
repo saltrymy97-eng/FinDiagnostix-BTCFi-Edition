@@ -1,101 +1,85 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+from PIL import Image
 
-# --- Professional Page Config ---
-st.set_page_config(page_title="FinDiagnostix - Academic Auditor", page_icon="⚖️", layout="wide")
+# --- Professional Configuration ---
+st.set_page_config(page_title="FinDiagnostix AI Auditor", layout="wide")
 
-# --- Header Section ---
-st.title("⚖️ FinDiagnostix: The AI Professor & Senior Auditor")
-st.markdown(f"### Developed by: **Salem Al-Tamimi** | Accounting Dept. | Workshop 2026")
+st.title("⚖️ FinDiagnostix: AI Professor & Auditor")
+st.markdown(f"### Coordinator: **Salem Al-Tamimi** | Accounting Dept.")
 st.write("---")
 
-# --- Session State ---
-if 'ledger' not in st.session_state:
-    st.session_state.ledger = []
+# --- 1. Session State ---
+if 'audit_log' not in st.session_state:
+    st.session_state.audit_log = []
 
-# --- 🧠 The Academic & Audit Engine ---
-def academic_audit_engine(input_text):
-    text = input_text.lower()
-    amount_str = "".join(filter(str.isdigit, text))
-    amount = float(amount_str) if amount_str else 0
+# --- 2. The "Professor & Auditor" Engine ---
+def academic_audit(filename, text_input=""):
+    # Combine filename and text for analysis
+    content = (filename + " " + text_input).lower()
+    amount_str = "".join(filter(str.isdigit, content))
+    amount = float(amount_str) if amount_str else 10000 # Default for demo
     
-    # Logic 1: Purchases (Expenses)
-    if any(word in text for word in ["buy", "purchase", "diesel", "fuel"]):
+    # Audit Logic
+    if any(word in content for word in ["diesel", "fuel", "purchase"]):
         return {
-            "dr": "Purchases (Diesel/Expenses)",
-            "cr": "Cash Account",
-            "amt": amount,
-            "professor_logic": "Since the entity purchased fuel, Expenses increased (Natural Debit) and Assets/Cash decreased (Natural Debit becomes Credit when decreasing).",
-            "audit_verdict": "✅ Valid Entry. Matches standard operational patterns.",
-            "risk": "Low"
+            "dr": "Purchases (Expenses)", "cr": "Cash Account", "amt": amount,
+            "logic": "Expenses increased (Natural Debit) and Assets decreased (Natural Credit).",
+            "verdict": "✅ Valid Operational Expense.", "risk": "Low"
         }
-    
-    # Logic 2: Sales (Revenue)
-    elif any(word in text for word in ["sell", "sales", "revenue", "received"]):
-        # Special Audit Check for 'False Profit'
-        audit_note = "✅ Revenue recognized according to IFRS/GAAP."
-        risk_level = "Low"
-        if amount > 500000: # Example Threshold
-            audit_note = "⚠️ **AUDIT ALERT:** Unusually high revenue entry. Potential 'False Profit' to inflate financial position. Verify against physical delivery records."
-            risk_level = "High"
-
+    elif any(word in content for word in ["sale", "revenue", "received"]):
         return {
-            "dr": "Cash Account",
-            "cr": "Sales Revenue",
-            "amt": amount,
-            "professor_logic": "Revenue increases (Natural Credit) and Cash increases (Natural Debit). Both sides of the equation are balanced.",
-            "audit_verdict": audit_note,
-            "risk": risk_level
+            "dr": "Cash Account", "cr": "Sales Revenue", "amt": amount,
+            "logic": "Assets increased (Natural Debit) and Revenue increased (Natural Credit).",
+            "verdict": "✅ Revenue recognized per Accounting Standards.", "risk": "Low"
         }
-    
-    # Logic 3: Unknown / Suspicious Entry
     else:
         return {
-            "dr": "Suspense Account (Pending)",
-            "cr": "Cash Account",
-            "amt": amount,
-            "professor_logic": "The system cannot determine the debit nature. Placing in Suspense Account to keep the trial balance intact.",
-            "audit_verdict": "🔴 **FRAUD WARNING:** Transaction description is vague. High risk of 'Window Dressing' or embezzlement.",
-            "risk": "Critical"
+            "dr": "Suspense Account", "cr": "Cash Account", "amt": amount,
+            "logic": "Nature of debit is unclear. Placed in Suspense to balance the entry.",
+            "verdict": "🔴 **FRAUD ALERT:** Vague documentation. Potential 'False Profit' or embezzlement.", "risk": "High"
         }
 
-# --- Sidebar Input ---
-st.sidebar.header("📥 Transaction Input")
-st.sidebar.info("Describe the event (e.g., 'Sold water for 80000')")
-user_input = st.sidebar.text_area("Entry Description:")
+# --- 3. THE UPLOAD SECTION (HERE IT IS!) ---
+st.sidebar.header("📤 Document Center")
+# This is the button to upload images
+uploaded_file = st.sidebar.file_uploader("Upload Invoice/Receipt Image", type=["jpg", "png", "jpeg"])
 
-if st.sidebar.button("Run AI Audit"):
-    if user_input:
-        analysis = academic_audit_engine(user_input)
+user_description = st.sidebar.text_input("Optional: Add Description")
+
+if uploaded_file is not None:
+    # Show the image
+    img = Image.open(uploaded_file)
+    st.sidebar.image(img, caption="Uploaded Document", use_container_width=True)
+    
+    if st.sidebar.button("Analyze & Audit"):
+        result = academic_audit(uploaded_file.name, user_description)
         
-        # 1. The Professor's Explanation
-        st.subheader("👨‍🏫 The Professor's Explanation:")
-        st.info(analysis['professor_logic'])
+        # Display Professor's Explanation
+        st.subheader("👨‍🏫 Professor's Accounting Logic:")
+        st.info(result['logic'])
         
-        # 2. The Auditor's Verdict
-        st.subheader("🔍 Auditor's Verification:")
-        if analysis['risk'] == "Low":
-            st.success(analysis['audit_verdict'])
-        elif analysis['risk'] == "High":
-            st.warning(analysis['audit_verdict'])
+        # Display Auditor's Verdict
+        st.subheader("🔍 Auditor's Verdict:")
+        if result['risk'] == "Low":
+            st.success(result['verdict'])
         else:
-            st.error(analysis['audit_verdict'])
-
-        # 3. The Official Double-Entry Journal
-        st.subheader("📑 Automated Journal Entry:")
-        journal_data = {
-            "Account Title": [analysis['dr'], analysis['cr']],
-            "Debit (DR)": [f"{analysis['amt']:,}", ""],
-            "Credit (CR)": ["", f"{analysis['amt']:,}"]
-        }
-        st.table(pd.DataFrame(journal_data))
-        
-        # Save to session history
-        st.session_state.ledger.append(analysis)
-    else:
-        st.sidebar.error("Please enter transaction details.")
-
-st.write("---")
-st.caption("FinDiagnostix AI v2.0 - Bridging Academia and Industry.")
+            st.error(result['verdict'])
             
+        # Display Official Journal Entry
+        st.subheader("📑 Automated Journal Entry:")
+        df_entry = pd.DataFrame({
+            "Description": ["Debit (Dr.)", "Credit (Cr.)"],
+            "Account": [result['dr'], result['cr']],
+            "Amount (YR)": [f"{result['amt']:,}", f"{result['amt']:,}"]
+        })
+        st.table(df_entry)
+        
+        st.session_state.audit_log.append(result)
+
+# --- 4. Historical Audit Trail ---
+if st.session_state.audit_log:
+    st.write("---")
+    st.subheader("📋 Session Audit Trail")
+    st.write(pd.DataFrame(st.session_state.audit_log)[['dr', 'cr', 'amt', 'risk']])

@@ -1,102 +1,85 @@
 import streamlit as st
-import pandas as pd
 from groq import Groq
 from PIL import Image
 from gtts import gTTS
+from streamlit_mic_recorder import mic_recorder
 import io
+import base64
 
-# --- 1. Page Configuration (Enterprise Look) ---
-st.set_page_config(page_title="FinDiagnostix AI | Auditor & Voice Advisor", layout="wide")
+# --- 1. CONFIGURATION ---
+st.set_page_config(page_title="FinDiagnostix AI", layout="wide")
+client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
-# Custom Professional CSS
-st.markdown("""
-    <style>
-    .stApp { background-color: #0d1117; color: #c9d1d9; }
-    .audit-box { background-color: #161b22; border-left: 5px solid #58a6ff; padding: 20px; border-radius: 8px; margin: 10px 0; }
-    .stMetric { background-color: #161b22; border: 1px solid #30363d; padding: 15px; border-radius: 10px; }
-    h1, h2, h3 { color: #58a6ff; font-family: 'Inter', sans-serif; }
-    </style>
-    """, unsafe_allow_html=True)
+def encode_image(image_file):
+    return base64.b64encode(image_file.read()).decode('utf-8')
 
-# --- 2. Secure Engine Setup ---
-try:
-    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-except Exception as e:
-    st.error("API Key not found. Please check Streamlit Secrets.")
-
-# Voice Function (Arabic TTS)
-def play_arabic_voice(text):
+def play_professor_voice(text):
     tts = gTTS(text=text, lang='ar')
     fp = io.BytesIO()
     tts.write_to_fp(fp)
     return fp
 
-# --- 3. Main Interface ---
-st.title("⚖️ FIN-DIAGNOSTIX: AI AUDIT SYSTEM")
-st.caption("Strategic Financial Intelligence Platform | Developed by Salem Al-Tamimi")
+# --- 2. INTERFACE ---
+st.title("⚖️ FIN-DIAGNOSTIX: VISION & VOICE AUDITOR")
 st.write("---")
 
-# Sidebar for Invoice Auditing
-st.sidebar.header("📥 Data Entry")
-uploaded_file = st.sidebar.file_uploader("Upload Transaction Document", type=["jpg", "png", "jpeg"])
-manual_input = st.sidebar.text_area("Transaction Narrative", placeholder="e.g., Purchased goods on credit for 500,000 YR")
+if "audit_context" not in st.session_state:
+    st.session_state.audit_context = ""
 
-if st.sidebar.button("RUN AI ANALYSIS"):
-    if manual_input or uploaded_file:
-        with st.spinner("Analyzing..."):
-            completion = client.chat.completions.create(
+# --- STEP 1: IMAGE ANALYSIS ---
+st.header("Step 1: Upload & Audit")
+uploaded_file = st.file_uploader("Upload Invoice", type=["jpg", "png", "jpeg"])
+
+if uploaded_file:
+    col1, col2 = st.columns([1, 2])
+    with col1:
+        st.image(uploaded_file, use_container_width=True)
+        if st.button("RUN AI ANALYSIS"):
+            with st.spinner("Analyzing..."):
+                img_b64 = encode_image(uploaded_file)
+                response = client.chat.completions.create(
+                    model="llama-3.2-11b-vision-preview",
+                    messages=[{
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "Analyze this invoice. Provide: 1. Journal Entry Table (DR/CR). 2. Professional Explanation in Arabic. 3. Audit Verdict in Arabic."},
+                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}}
+                        ]
+                    }]
+                )
+                st.session_state.audit_context = response.choices[0].message.content
+
+    if st.session_state.audit_context:
+        with col2:
+            st.markdown(f"### Audit Report\n{st.session_state.audit_context}")
+
+# --- STEP 2: VOICE DISCUSSION ---
+if st.session_state.audit_context:
+    st.write("---")
+    st.header("Step 2: Voice Discussion")
+    
+    # Microphone Input
+    audio = mic_recorder(start_prompt="🎤 Speak to Professor", stop_prompt="🛑 Stop", key='recorder')
+    
+    if audio:
+        # Note: In a live workshop, you would use a Speech-to-Text API here. 
+        # For now, it captures audio to show the Professor is 'listening'.
+        st.audio(audio['bytes'])
+        st.success("Voice received. Processing Professor's advice...")
+
+    # Text Discussion (Backup for Speech-to-Text)
+    if user_query := st.chat_input("Ask about the invoice..."):
+        with st.chat_message("assistant"):
+            chat_res = client.chat.completions.create(
                 model="llama-3.1-8b-instant",
                 messages=[
-                    {"role": "system", "content": "You are a Senior Auditor. Analyze the transaction. Provide Journal Entry (DR/CR) and Audit Verdict."},
-                    {"role": "user", "content": manual_input}
+                    {"role": "system", "content": "You are a male Accounting Professor. Respond briefly in Arabic with authority."},
+                    {"role": "assistant", "content": st.session_state.audit_context},
+                    {"role": "user", "content": user_query}
                 ]
             )
-            report = completion.choices[0].message.content
-            st.subheader("🔍 PROFESSOR'S AUDIT REPORT")
-            st.markdown(f"<div class='audit-box'>{report}</div>", unsafe_allow_html=True)
-            if uploaded_file:
-                st.sidebar.image(Image.open(uploaded_file), use_container_width=True)
+            ans = chat_res.choices[0].message.content
+            st.markdown(ans)
+            st.audio(play_professor_voice(ans), format='audio/mp3')
 
-# --- 4. Interactive Chat & Arabic Voice Advisor ---
-st.subheader("👨‍🏫 Academic & Voice Advisor")
-st.info("Ask the Professor about the transaction in Arabic (e.g., هل اشترينا بالأجل؟)")
-
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-# Display Chat History
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-
-# Chat Input (Arabic/English supported)
-if prompt := st.chat_input("Ask me anything..."):
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
-
-    with st.chat_message("assistant"):
-        with st.spinner("The Professor is thinking..."):
-            chat_response = client.chat.completions.create(
-                model="llama-3.1-8b-instant",
-                messages=[
-                    {"role": "system", "content": "You are a Senior Accounting Professor. Respond in Arabic. Provide professional audit advice."},
-                    *st.session_state.messages
-                ]
-            )
-            response_text = chat_response.choices[0].message.content
-            st.markdown(response_text)
-            
-            # Generate and Play Voice
-            audio_fp = play_arabic_voice(response_text)
-            st.audio(audio_fp, format='audio/mp3')
-            
-            st.session_state.messages.append({"role": "assistant", "content": response_text})
-
-# --- 5. System Status ---
-st.write("---")
-col1, col2, col3 = st.columns(3)
-col1.metric("Engine", "Llama-3.1-8B", "Active")
-col2.metric("Voice System", "Arabic (gTTS)", "Ready")
-col3.metric("System Risk", "Monitored", "0.0%")
-            
+st.sidebar.caption("Salem Al-Tamimi | 2026")

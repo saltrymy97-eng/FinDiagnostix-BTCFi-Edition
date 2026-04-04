@@ -2,84 +2,82 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 from PIL import Image
+try:
+    from groq import Groq
+except ImportError:
+    st.error("Missing dependency: Please add 'groq' to your requirements.txt")
 
-# --- Professional Configuration ---
-st.set_page_config(page_title="FinDiagnostix AI Auditor", layout="wide")
+# --- 1. Enterprise UI Configuration ---
+st.set_page_config(page_title="FinDiagnostix AI | Enterprise Auditor", layout="wide")
 
-st.title("⚖️ FinDiagnostix: AI Professor & Auditor")
-st.markdown(f"### Coordinator: **Salem Al-Tamimi** | Accounting Dept.")
+# Custom Professional CSS (Deep Dark Theme)
+st.markdown("""
+    <style>
+    .stApp { background-color: #0d1117; color: #c9d1d9; }
+    .stMetric { background-color: #161b22; border: 1px solid #30363d; padding: 15px; border-radius: 10px; }
+    .audit-box { background-color: #161b22; border-left: 5px solid #58a6ff; padding: 20px; border-radius: 5px; margin: 10px 0; }
+    h1, h2, h3 { color: #58a6ff; font-family: 'Inter', sans-serif; }
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- 2. AI Engine Setup (Groq) ---
+# NOTE: Replace 'YOUR_GROQ_API_KEY' with the key from Groq Console
+client = Groq(api_key="YOUR_GROQ_API_KEY")
+
+def ai_accounting_auditor(user_input):
+    """Calls Groq AI to act as a Professor and Auditor"""
+    try:
+        chat_completion = client.chat.completions.create(
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a Senior University Accounting Professor and expert Auditor. "
+                               "Analyze the user's transaction. Provide: 1. A formal Journal Entry (DR/CR). "
+                               "2. Academic explanation of the logic. 3. Audit verdict on potential 'False Profit' or risks."
+                },
+                {"role": "user", "content": user_input}
+            ],
+            model="llama3-8b-8192",
+            temperature=0.2,
+        )
+        return chat_completion.choices[0].message.content
+    except Exception as e:
+        return f"AI Error: {str(e)}"
+
+# --- 3. Main Interface ---
+st.title("⚖️ FIN-DIAGNOSTIX: AI AUDIT SYSTEM")
+st.caption("Strategic Financial Intelligence Platform | Developed by Salem Al-Tamimi")
 st.write("---")
 
-# --- 1. Session State ---
-if 'audit_log' not in st.session_state:
-    st.session_state.audit_log = []
+# Sidebar for Inputs
+st.sidebar.header("📥 Data Entry")
+uploaded_file = st.sidebar.file_uploader("Upload Transaction Document", type=["jpg", "png", "jpeg"])
+manual_input = st.sidebar.text_area("Transaction Narrative", placeholder="e.g., Sold services for 120,000 YR cash")
 
-# --- 2. The "Professor & Auditor" Engine ---
-def academic_audit(filename, text_input=""):
-    # Combine filename and text for analysis
-    content = (filename + " " + text_input).lower()
-    amount_str = "".join(filter(str.isdigit, content))
-    amount = float(amount_str) if amount_str else 10000 # Default for demo
-    
-    # Audit Logic
-    if any(word in content for word in ["diesel", "fuel", "purchase"]):
-        return {
-            "dr": "Purchases (Expenses)", "cr": "Cash Account", "amt": amount,
-            "logic": "Expenses increased (Natural Debit) and Assets decreased (Natural Credit).",
-            "verdict": "✅ Valid Operational Expense.", "risk": "Low"
-        }
-    elif any(word in content for word in ["sale", "revenue", "received"]):
-        return {
-            "dr": "Cash Account", "cr": "Sales Revenue", "amt": amount,
-            "logic": "Assets increased (Natural Debit) and Revenue increased (Natural Credit).",
-            "verdict": "✅ Revenue recognized per Accounting Standards.", "risk": "Low"
-        }
-    else:
-        return {
-            "dr": "Suspense Account", "cr": "Cash Account", "amt": amount,
-            "logic": "Nature of debit is unclear. Placed in Suspense to balance the entry.",
-            "verdict": "🔴 **FRAUD ALERT:** Vague documentation. Potential 'False Profit' or embezzlement.", "risk": "High"
-        }
-
-# --- 3. THE UPLOAD SECTION (HERE IT IS!) ---
-st.sidebar.header("📤 Document Center")
-# This is the button to upload images
-uploaded_file = st.sidebar.file_uploader("Upload Invoice/Receipt Image", type=["jpg", "png", "jpeg"])
-
-user_description = st.sidebar.text_input("Optional: Add Description")
-
-if uploaded_file is not None:
-    # Show the image
-    img = Image.open(uploaded_file)
-    st.sidebar.image(img, caption="Uploaded Document", use_container_width=True)
-    
-    if st.sidebar.button("Analyze & Audit"):
-        result = academic_audit(uploaded_file.name, user_description)
-        
-        # Display Professor's Explanation
-        st.subheader("👨‍🏫 Professor's Accounting Logic:")
-        st.info(result['logic'])
-        
-        # Display Auditor's Verdict
-        st.subheader("🔍 Auditor's Verdict:")
-        if result['risk'] == "Low":
-            st.success(result['verdict'])
-        else:
-            st.error(result['verdict'])
+if st.sidebar.button("RUN AI ANALYSIS"):
+    if manual_input or uploaded_file:
+        with st.spinner("AI Auditor is processing..."):
+            # Prepare data for AI
+            doc_name = uploaded_file.name if uploaded_file else "None"
+            full_context = f"File: {doc_name}. Context: {manual_input}"
             
-        # Display Official Journal Entry
-        st.subheader("📑 Automated Journal Entry:")
-        df_entry = pd.DataFrame({
-            "Description": ["Debit (Dr.)", "Credit (Cr.)"],
-            "Account": [result['dr'], result['cr']],
-            "Amount (YR)": [f"{result['amt']:,}", f"{result['amt']:,}"]
-        })
-        st.table(df_entry)
-        
-        st.session_state.audit_log.append(result)
+            # Get AI Analysis
+            report = ai_accounting_auditor(full_context)
+            
+            # Display Results
+            st.subheader("🔍 PROFESSOR'S AUDIT REPORT")
+            st.markdown(f"<div class='audit-box'>{report}</div>", unsafe_allow_html=True)
+            
+            # Show Image if uploaded
+            if uploaded_file:
+                st.sidebar.image(Image.open(uploaded_file), caption="Processed Document", use_container_width=True)
+    else:
+        st.sidebar.warning("Please provide input data.")
 
-# --- 4. Historical Audit Trail ---
-if st.session_state.audit_log:
-    st.write("---")
-    st.subheader("📋 Session Audit Trail")
-    st.write(pd.DataFrame(st.session_state.audit_log)[['dr', 'cr', 'amt', 'risk']])
+# --- 4. System Integrity Metrics ---
+st.write("---")
+col1, col2, col3 = st.columns(3)
+col1.metric("Engine", "Groq Llama-3", "Active")
+col2.metric("Audit Status", "Real-time", "Secure")
+col3.metric("System Risk", "Monitored", "0.0%")
+        

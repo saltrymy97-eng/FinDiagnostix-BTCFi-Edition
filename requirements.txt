@@ -1,5 +1,5 @@
 streamlit
 groq
 pillow
+pytesseract
 gTTS
-streamlit-mic-recorder

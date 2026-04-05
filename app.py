@@ -3,170 +3,158 @@ from groq import Groq
 import base64
 import io
 from PIL import Image
-from gtts import gTTS
+import speech_recognition as sr
+import asyncio
+import edge_tts
+import os
 
-# ---------------------------
-# 1. PAGE CONFIG
-# ---------------------------
-st.set_page_config(page_title="FinDiagnostix AI | PRO", layout="wide")
+# -----------------------------
+# PAGE CONFIG
+# -----------------------------
+st.set_page_config(page_title="FIN-DIAGNOSTIX AI PRO", layout="wide")
 
-st.markdown("""
-    <style>
-    .stApp { background-color: #0d1117; color: #c9d1d9; }
-    .report-card { background-color: #161b22; border-left: 5px solid #f55036; padding: 20px; border-radius: 10px; }
-    h1, h2 { color: #f55036; }
-    .stButton>button { background-color: #f55036; color: white; border-radius: 8px; width: 100%; }
-    </style>
-    """, unsafe_allow_html=True)
+st.title("⚖️ FIN-DIAGNOSTIX AI PRO (VISION + VOICE)")
 
-# ---------------------------
-# 2. API SETUP
-# ---------------------------
-if "GROQ_API_KEY" in st.secrets:
-    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-else:
-    st.error("Missing API Key!")
-    st.stop()
+# -----------------------------
+# GROQ CLIENT
+# -----------------------------
+client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
-# ---------------------------
-# 3. AUTO CROP + COMPRESS
-# ---------------------------
+# -----------------------------
+# IMAGE PREP
+# -----------------------------
 def prepare_image(image):
-    width, height = image.size
+    image = image.convert("RGB")
+    image.thumbnail((600, 600))
 
-    # Crop center (reduce useless parts)
-    left = width * 0.1
-    right = width * 0.9
-    top = height * 0.2
-    bottom = height * 0.8
-
-    image = image.crop((left, top, right, bottom))
-
-    # Resize small
-    image.thumbnail((500, 300))
-
-    # Compress strongly
     buffer = io.BytesIO()
-    image.save(buffer, format="JPEG", quality=40, optimize=True)
+    image.save(buffer, format="JPEG", quality=50)
+    img_b64 = base64.b64encode(buffer.getvalue()).decode()
 
-    # Convert to Base64
-    img_b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+    return img_b64
 
-    # Limit size (VERY IMPORTANT)
-    return img_b64[:4000]
-
-# ---------------------------
-# 4. TEXT TO SPEECH
-# ---------------------------
-def generate_voice(text):
+# -----------------------------
+# VOICE TO TEXT
+# -----------------------------
+def speech_to_text(audio_file):
+    recognizer = sr.Recognizer()
+    with sr.AudioFile(audio_file) as source:
+        audio = recognizer.record(source)
     try:
-        tts = gTTS(text=text, lang='ar')
-        fp = io.BytesIO()
-        tts.write_to_fp(fp)
-        fp.seek(0)
-        return fp
+        text = recognizer.recognize_google(audio, language="en-US")
+        return text
     except:
-        return None
+        return "Could not understand audio"
 
-# ---------------------------
-# 5. SESSION STATE
-# ---------------------------
-if "audit_report" not in st.session_state:
-    st.session_state.audit_report = ""
+# -----------------------------
+# TEXT TO MALE VOICE (EDGE TTS)
+# -----------------------------
+async def text_to_speech(text, filename="voice.mp3"):
+    communicate = edge_tts.Communicate(text, "en-US-GuyNeural")  # 👈 Male Voice
+    await communicate.save(filename)
+    return filename
 
-if "current_img" not in st.session_state:
-    st.session_state.current_img = None
+def speak(text):
+    file = "voice.mp3"
+    asyncio.run(text_to_speech(text, file))
+    return file
 
-# ---------------------------
-# 6. MAIN UI
-# ---------------------------
-st.title("⚖️ FIN-DIAGNOSTIX AI (GLOBAL PRO)")
-st.write("---")
+# -----------------------------
+# IMAGE UPLOAD
+# -----------------------------
+file = st.file_uploader("Upload Financial Document", type=["jpg","png","jpeg"])
 
-file = st.file_uploader("Upload Financial Document", type=["jpg", "png", "jpeg"])
+img_b64 = None
 
 if file:
-    st.session_state.current_img = Image.open(file)
+    image = Image.open(file)
+    st.image(image, caption="Uploaded Document")
 
-if st.session_state.current_img:
-    col1, col2 = st.columns([1, 2])
+    img_b64 = prepare_image(image)
 
-    with col1:
-        st.image(st.session_state.current_img, caption="Document Loaded")
+# -----------------------------
+# VISION ANALYSIS
+# -----------------------------
+if img_b64 and st.button("Analyze Document"):
+    with st.spinner("AI Vision analyzing..."):
 
-        if st.button("RUN FULL AUDIT"):
-            try:
-                with st.spinner("AI is analyzing..."):
+        response = client.chat.completions.create(
+            model="llama-3.2-11b-vision-preview",
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "text",
+                     "text": "Analyze this financial document. Give journal entries, errors, risk analysis and fraud detection in Arabic."},
+                    {"type": "image_url",
+                     "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}}
+                ]
+            }],
+            temperature=0.1
+        )
 
-                    img_b64 = prepare_image(st.session_state.current_img)
+        result = response.choices[0].message.content
+        st.session_state["result"] = result
 
-                    response = client.chat.completions.create(
-                        model="openai/gpt-oss-120b",
-                        messages=[
-                            {
-                                "role": "system",
-                                "content": "You are a professional financial auditor."
-                            },
-                            {
-                                "role": "user",
-                                "content": f"""
-Analyze this financial document image.
+        st.success("Analysis Completed")
+        st.write(result)
 
-Provide:
-- Journal Entries
-- Errors
-- Risk Analysis
-- Fraud Detection
-- Recommendations
+        # voice output
+        audio_file = speak(result)
+        st.audio(audio_file)
 
-Answer in Arabic.
+# -----------------------------
+# CHAT SECTION
+# -----------------------------
+if "result" in st.session_state:
 
-Image Data:
-{img_b64}
-"""
-                            }
-                        ],
-                        temperature=0.1
-                    )
-
-                    st.session_state.audit_report = response.choices[0].message.content
-
-            except Exception as e:
-                st.error(f"Error: {str(e)}")
-
-    # ---------------------------
-    # 7. REPORT DISPLAY
-    # ---------------------------
-    if st.session_state.audit_report:
-        with col2:
-            st.markdown(
-                f"### 📊 Final Audit Report\n<div class='report-card'>{st.session_state.audit_report}</div>",
-                unsafe_allow_html=True
-            )
-
-# ---------------------------
-# 8. AI CHAT
-# ---------------------------
-if st.session_state.audit_report:
     st.write("---")
+    st.subheader("💬 Chat with AI Professor")
 
-    query = st.chat_input("Ask the AI Professor...")
+    user_input = st.text_input("Ask a question")
 
-    if query:
+    if user_input:
         response = client.chat.completions.create(
             model="openai/gpt-oss-120b",
             messages=[
-                {"role": "system", "content": "You are a professional Accounting Professor. Answer in Arabic."},
-                {"role": "user", "content": f"Context:\n{st.session_state.audit_report}\n\nQuestion: {query}"}
-            ],
-            temperature=0.2
+                {"role": "system", "content": "You are a professional accounting professor. Answer in Arabic."},
+                {"role": "user", "content": f"Context:\n{st.session_state['result']}\n\nQuestion:{user_input}"}
+            ]
         )
 
         answer = response.choices[0].message.content
 
-        with st.chat_message("assistant"):
-            st.write(answer)
+        st.write(answer)
 
-            audio = generate_voice(answer)
-            if audio:
-                st.audio(audio)
+        audio = speak(answer)
+        st.audio(audio)
+
+# -----------------------------
+# VOICE INPUT
+# -----------------------------
+st.write("---")
+st.subheader("🎤 Voice Input (Upload Audio)")
+
+audio_input = st.file_uploader("Upload WAV Audio", type=["wav"])
+
+if audio_input:
+    with open("input.wav", "wb") as f:
+        f.write(audio_input.read())
+
+    text = speech_to_text("input.wav")
+
+    st.write("You said:", text)
+
+    response = client.chat.completions.create(
+        model="openai/gpt-oss-120b",
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": text}
+        ]
+    )
+
+    answer = response.choices[0].message.content
+
+    st.write(answer)
+
+    audio = speak(answer)
+    st.audio(audio)

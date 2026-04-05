@@ -1,1 +1,1 @@
-pip install streamlit groq pillow gtts speechrecognition pydub soundfile edge-tts
+pip install streamlit groq pillow edge-tts streamlit-audiorec

@@ -1,5 +1,5 @@
-streamlit
-groq
-install pillow
-gTTS
-streamlit-mic-recorder
+pip install streamlit
+pip install groq
+pip install pillow
+pip install gTTS
+pip install streamlit-mic-recorder

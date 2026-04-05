@@ -9,7 +9,7 @@ from streamlit_mic_recorder import mic_recorder
 # --- 1. PAGE CONFIGURATION ---
 st.set_page_config(page_title="FinDiagnostix AI | PRO", layout="wide")
 
-# Custom CSS for Professional Dark Theme
+# Custom CSS for a professional look
 st.markdown("""
     <style>
     .stApp { background-color: #0d1117; color: #c9d1d9; }
@@ -18,37 +18,38 @@ st.markdown("""
         border-left: 5px solid #f55036; 
         padding: 20px; 
         border-radius: 10px; 
-        line-height: 1.6;
     }
     h1, h3 { color: #f55036; }
-    .stButton>button { background-color: #f55036; color: white; border-radius: 8px; }
+    .stButton>button { background-color: #f55036; color: white; border-radius: 8px; width: 100%; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. API INITIALIZATION ---
+# --- 2. API SETUP ---
 if "GROQ_API_KEY" in st.secrets:
     client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 else:
-    st.error("Error: Please add your GROQ_API_KEY to .streamlit/secrets.toml")
+    st.error("Missing GROQ_API_KEY in secrets!")
     st.stop()
 
 # --- 3. CORE UTILITIES ---
 def encode_image(image):
-    """Optimizes and encodes image to Base64 for Vision API."""
+    """Optimizes and converts image to Base64 for the Vision API."""
     buffer = io.BytesIO()
+    if image.mode != 'RGB':
+        image = image.convert('RGB')
     image.thumbnail((1000, 1000))
     image.save(buffer, format="JPEG", quality=85)
     return base64.b64encode(buffer.getvalue()).decode('utf-8')
 
 def text_to_speech(text):
-    """Converts AI response to Arabic audio stream."""
+    """Converts the Arabic response to an audio stream."""
     tts = gTTS(text=text, lang='ar')
     fp = io.BytesIO()
     tts.write_to_fp(fp)
     return fp
 
 def speech_to_text(audio_bytes):
-    """Transcribes user voice using Whisper-Large-V3-Turbo."""
+    """Transcribes user voice to text using Whisper."""
     audio_file = io.BytesIO(audio_bytes)
     audio_file.name = "input.wav"
     transcription = client.audio.transcriptions.create(
@@ -58,11 +59,10 @@ def speech_to_text(audio_bytes):
     )
     return transcription.text
 
-# --- 4. MAIN INTERFACE ---
-st.title("⚖️ FinDiagnostix AI: The Accounting Professor")
-st.write("Upload a document, get the entries, and start a voice conversation.")
+# --- 4. MAIN USER INTERFACE ---
+st.title("⚖️ FinDiagnostix AI: Professional Edition")
+st.write("Upload a document for instant accounting analysis and voice interaction.")
 
-# Session State for Analysis Persistence
 if "analysis_results" not in st.session_state:
     st.session_state.analysis_results = None
 
@@ -74,40 +74,47 @@ if uploaded_file:
     col1, col2 = st.columns([1, 1.5])
     
     with col1:
-        st.image(img, caption="Document Preview", use_container_width=True)
+        st.image(img, caption="Original Document", use_container_width=True)
     
-    # Trigger AI Analysis only once upon upload
+    # Automatic Analysis triggered by upload
     if st.session_state.analysis_results is None:
-        with st.spinner("Professor is analyzing the document..."):
-            img_b64 = encode_image(img)
-            response = client.chat.completions.create(
-                model="llama-3.2-11b-vision-preview",
-                messages=[
-                    {
-                        "role": "system", 
-                        "content": "You are a professional Accounting Professor. Analyze the image, extract Journal Entries, and explain them briefly in ARABIC."
-                    },
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": "Analyze this document and provide accounting entries with a short explanation in Arabic."},
-                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}}
-                        ]
-                    }
-                ]
-            )
-            st.session_state.analysis_results = response.choices[0].message.content
+        with st.spinner("AI Professor is analyzing using the latest model..."):
+            try:
+                base64_image = encode_image(img)
+                
+                # Using your specified model: openai/gpt-oss-120b
+                response = client.chat.completions.create(
+                    model="openai/gpt-oss-120b",
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": "Extract journal entries and provide a brief educational explanation in Arabic."},
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:image/jpeg;base64,{base64_image}"
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                )
+                st.session_state.analysis_results = response.choices[0].message.content
+            except Exception as e:
+                st.error(f"Model Error: {str(e)}")
 
     with col2:
-        st.markdown("### 📊 Analysis & Journal Entries")
-        st.markdown(f"<div class='report-card'>{st.session_state.analysis_results}</div>", unsafe_allow_html=True)
+        if st.session_state.analysis_results:
+            st.markdown("### 📊 Accounting Journal & Explanation")
+            st.markdown(f"<div class='report-card'>{st.session_state.analysis_results}</div>", unsafe_allow_html=True)
 
-# --- 5. INTERACTIVE VOICE CHAT ---
+# --- 5. VOICE INTERACTION SECTION ---
 if st.session_state.analysis_results:
     st.write("---")
-    st.subheader("🎙️ Ask the Professor via Voice")
+    st.subheader("🎙️ Voice Chat with the Professor")
     
-    # Mic Component
+    # Mic Recording Component
     audio_record = mic_recorder(
         start_prompt="Click to Speak", 
         stop_prompt="Stop & Send", 
@@ -115,25 +122,23 @@ if st.session_state.analysis_results:
     )
 
     if audio_record:
-        # Step A: Voice to Text
-        with st.spinner("Listening..."):
+        with st.spinner("Professor is listening..."):
             user_text = speech_to_text(audio_record['bytes'])
-            st.info(f"You said: {user_text}")
+            st.info(f"You asked: {user_text}")
 
-        # Step B: Chat with Context
-        with st.spinner("The Professor is responding..."):
+            # Chat with context
             res = client.chat.completions.create(
-                model="llama3-70b-8192",
+                model="openai/gpt-oss-120b",
                 messages=[
-                    {"role": "system", "content": "You are a helpful Accounting Professor. Answer questions based on the previous analysis in ARABIC. Be concise."},
+                    {"role": "system", "content": "You are a professional Accounting Professor. Answer questions based on the previous analysis in Arabic. Be concise."},
                     {"role": "assistant", "content": st.session_state.analysis_results},
                     {"role": "user", "content": user_text}
                 ]
             )
             professor_answer = res.choices[0].message.content
-            st.success(f"Professor: {professor_answer}")
+            st.success(f"Professor's Answer: {professor_answer}")
 
-            # Step C: Text to Voice (Autoplay)
+            # Automatic Voice Playback
             voice_output = text_to_speech(professor_answer)
             st.audio(voice_output, format='audio/mp3', autoplay=True)
     

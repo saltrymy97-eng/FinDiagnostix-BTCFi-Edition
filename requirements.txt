@@ -2,5 +2,6 @@ streamlit
 groq
 pillow
 easyocr
-opencv-python
 numpy
+speechrecognition
+gtts

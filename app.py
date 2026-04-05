@@ -1,108 +1,79 @@
 import streamlit as st
 from groq import Groq
 from PIL import Image
-import pytesseract
+import easyocr
+import numpy as np
+from gtts import gTTS
+import speech_recognition as sr
+import os
 
-# ---------------------------
-# 1. PAGE CONFIG
-# ---------------------------
-st.set_page_config(page_title="FIN-DIAGNOSTIX AI | WORKSHOP", layout="wide")
+client = Groq(api_key="YOUR_API_KEY")
+reader = easyocr.Reader(['en', 'ar'])
 
-st.markdown("""
-<style>
-.stApp { background-color: #0d1117; color: #c9d1d9; }
-.card {
-    background-color: #161b22;
-    padding: 20px;
-    border-radius: 10px;
-    border-left: 5px solid #f55036;
-}
-h1 { color: #f55036; }
-.stButton>button {
-    background-color: #f55036;
-    color: white;
-    width: 100%;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# ---------------------------
-# 2. GROQ API
-# ---------------------------
-if "GROQ_API_KEY" in st.secrets:
-    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-else:
-    st.error("API Key missing!")
-    st.stop()
-
-# ---------------------------
-# 3. OCR FUNCTION
-# ---------------------------
+# 📷 OCR
 def extract_text(image):
-    return pytesseract.image_to_string(image, lang="eng+ara")
+    image = np.array(image)
+    return "\n".join(reader.readtext(image, detail=0))
 
-# ---------------------------
-# 4. SESSION STATE
-# ---------------------------
-if "report" not in st.session_state:
-    st.session_state.report = ""
+# 🤖 AI accounting
+def analyze(text):
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[
+            {
+                "role": "system",
+                "content": "You are an accounting teacher. Extract journal entries and explain briefly."
+            },
+            {"role": "user", "content": text}
+        ],
+        temperature=0.2
+    )
+    return response.choices[0].message.content
 
-# ---------------------------
-# 5. UI
-# ---------------------------
-st.title("⚖️ FIN-DIAGNOSTIX AI (WORKSHOP MODE)")
-st.write("---")
+# 🎤 voice to text
+def voice_to_text(audio_file):
+    r = sr.Recognizer()
+    with sr.AudioFile(audio_file) as source:
+        audio = r.record(source)
+    return r.recognize_google(audio)
 
-file = st.file_uploader("Upload Financial Document", type=["jpg", "png", "jpeg"])
+# 🔊 text to voice
+def text_to_voice(text):
+    tts = gTTS(text)
+    tts.save("voice.mp3")
+    return "voice.mp3"
+
+
+# 🎯 UI
+st.title("FIN-DIAGNOSTIX AI")
+
+# 📷 Image part
+file = st.file_uploader("Upload Image")
 
 if file:
-    image = Image.open(file)
-    st.image(image, caption="Uploaded Document")
+    img = Image.open(file)
+    st.image(img)
 
-    if st.button("RUN ANALYSIS"):
-        with st.spinner("Extracting text & analyzing..."):
+    text = extract_text(img)
+    st.text_area("Extracted Text", text)
 
-            # 1. OCR
-            text = extract_text(image)
+    if st.button("Generate Accounting Entries"):
+        result = analyze(text)
+        st.write(result)
 
-            # 2. AI Analysis
-            response = client.chat.completions.create(
-                model="llama3-70b-8192",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a professional CPA financial auditor. Answer in Arabic."
-                    },
-                    {
-                        "role": "user",
-                        "content": f"""
-Analyze this accounting text:
+        audio = text_to_voice(result)
+        st.audio(audio)
 
-{text}
+# 🎤 Voice input
+audio_file = st.file_uploader("Upload Voice", type=["wav"])
 
-Provide:
-- Journal Entries
-- Errors
-- Risk Analysis
-- Fraud Detection
-- Recommendations
-"""
-                    }
-                ],
-                temperature=0.2
-            )
+if audio_file:
+    text = voice_to_text(audio_file)
+    st.write("You said:", text)
 
-            st.session_state.report = response.choices[0].message.content
+    if st.button("Answer"):
+        result = analyze(text)
+        st.write(result)
 
-# ---------------------------
-# 6. OUTPUT
-# ---------------------------
-if st.session_state.report:
-    st.markdown("## 📊 Audit Report")
-    st.markdown(f"<div class='card'>{st.session_state.report}</div>", unsafe_allow_html=True)
-
-    st.download_button(
-        "Download Report",
-        st.session_state.report,
-        file_name="audit_report.txt"
-            )
+        audio = text_to_voice(result)
+        st.audio(audio)

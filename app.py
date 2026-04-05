@@ -10,7 +10,6 @@ from gtts import gTTS
 # ---------------------------
 st.set_page_config(page_title="FinDiagnostix AI | PRO", layout="wide")
 
-# UI Styling
 st.markdown("""
     <style>
     .stApp { background-color: #0d1117; color: #c9d1d9; }
@@ -26,20 +25,35 @@ st.markdown("""
 if "GROQ_API_KEY" in st.secrets:
     client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 else:
-    st.error("Missing API Key! Add GROQ_API_KEY in Streamlit secrets.")
+    st.error("Missing API Key!")
     st.stop()
 
 # ---------------------------
-# 3. IMAGE PROCESSING
+# 3. AUTO CROP + COMPRESS
 # ---------------------------
 def prepare_image(image):
-    max_size = (1280, 720)
-    image.thumbnail(max_size)
+    width, height = image.size
 
-    buffered = io.BytesIO()
-    image.save(buffered, format="JPEG", quality=85)
+    # Crop center (reduce useless parts)
+    left = width * 0.1
+    right = width * 0.9
+    top = height * 0.2
+    bottom = height * 0.8
 
-    return base64.b64encode(buffered.getvalue()).decode('utf-8')
+    image = image.crop((left, top, right, bottom))
+
+    # Resize small
+    image.thumbnail((500, 300))
+
+    # Compress strongly
+    buffer = io.BytesIO()
+    image.save(buffer, format="JPEG", quality=40, optimize=True)
+
+    # Convert to Base64
+    img_b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+
+    # Limit size (VERY IMPORTANT)
+    return img_b64[:4000]
 
 # ---------------------------
 # 4. TEXT TO SPEECH
@@ -86,28 +100,28 @@ if st.session_state.current_img:
 
                     img_b64 = prepare_image(st.session_state.current_img)
 
-                    # IMPORTANT: Using latest stable model
                     response = client.chat.completions.create(
                         model="openai/gpt-oss-120b",
                         messages=[
                             {
                                 "role": "system",
-                                "content": "You are a world-class financial auditor AI."
+                                "content": "You are a professional financial auditor."
                             },
                             {
                                 "role": "user",
                                 "content": f"""
-Analyze this financial document and provide:
+Analyze this financial document image.
 
-1. Journal Entries
-2. Financial Errors (if any)
-3. Risk Analysis
-4. Fraud Detection
-5. Professional Recommendations
+Provide:
+- Journal Entries
+- Errors
+- Risk Analysis
+- Fraud Detection
+- Recommendations
 
 Answer in Arabic.
 
-Encoded Image:
+Image Data:
 {img_b64}
 """
                             }
@@ -131,7 +145,7 @@ Encoded Image:
             )
 
 # ---------------------------
-# 8. AI PROFESSOR CHAT
+# 8. AI CHAT
 # ---------------------------
 if st.session_state.audit_report:
     st.write("---")

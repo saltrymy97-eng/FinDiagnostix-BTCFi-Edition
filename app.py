@@ -4,169 +4,136 @@ import base64
 import io
 from PIL import Image
 from gtts import gTTS
+from streamlit_mic_recorder import mic_recorder
 
-# ---------------------------
-# 1. PAGE CONFIG
-# ---------------------------
+# --- 1. PAGE CONFIGURATION ---
 st.set_page_config(page_title="FinDiagnostix AI | PRO", layout="wide")
 
+# Custom CSS for Professional Dark Theme
 st.markdown("""
     <style>
     .stApp { background-color: #0d1117; color: #c9d1d9; }
-    .report-card { background-color: #161b22; border-left: 5px solid #f55036; padding: 20px; border-radius: 10px; }
-    h1, h2 { color: #f55036; }
-    .stButton>button { background-color: #f55036; color: white; border-radius: 8px; width: 100%; }
+    .report-card { 
+        background-color: #161b22; 
+        border-left: 5px solid #f55036; 
+        padding: 20px; 
+        border-radius: 10px; 
+        line-height: 1.6;
+    }
+    h1, h3 { color: #f55036; }
+    .stButton>button { background-color: #f55036; color: white; border-radius: 8px; }
     </style>
     """, unsafe_allow_html=True)
 
-# ---------------------------
-# 2. API SETUP
-# ---------------------------
+# --- 2. API INITIALIZATION ---
 if "GROQ_API_KEY" in st.secrets:
     client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 else:
-    st.error("Missing API Key!")
+    st.error("Error: Please add your GROQ_API_KEY to .streamlit/secrets.toml")
     st.stop()
 
-# ---------------------------
-# 3. AUTO CROP + COMPRESS
-# ---------------------------
-def prepare_image(image):
-    width, height = image.size
-
-    # Crop center (reduce useless parts)
-    left = width * 0.1
-    right = width * 0.9
-    top = height * 0.2
-    bottom = height * 0.8
-
-    image = image.crop((left, top, right, bottom))
-
-    # Resize small
-    image.thumbnail((500, 300))
-
-    # Compress strongly
+# --- 3. CORE UTILITIES ---
+def encode_image(image):
+    """Optimizes and encodes image to Base64 for Vision API."""
     buffer = io.BytesIO()
-    image.save(buffer, format="JPEG", quality=40, optimize=True)
+    image.thumbnail((1000, 1000))
+    image.save(buffer, format="JPEG", quality=85)
+    return base64.b64encode(buffer.getvalue()).decode('utf-8')
 
-    # Convert to Base64
-    img_b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+def text_to_speech(text):
+    """Converts AI response to Arabic audio stream."""
+    tts = gTTS(text=text, lang='ar')
+    fp = io.BytesIO()
+    tts.write_to_fp(fp)
+    return fp
 
-    # Limit size (VERY IMPORTANT)
-    return img_b64[:4000]
+def speech_to_text(audio_bytes):
+    """Transcribes user voice using Whisper-Large-V3-Turbo."""
+    audio_file = io.BytesIO(audio_bytes)
+    audio_file.name = "input.wav"
+    transcription = client.audio.transcriptions.create(
+        file=audio_file,
+        model="whisper-large-v3-turbo",
+        language="ar"
+    )
+    return transcription.text
 
-# ---------------------------
-# 4. TEXT TO SPEECH
-# ---------------------------
-def generate_voice(text):
-    try:
-        tts = gTTS(text=text, lang='ar')
-        fp = io.BytesIO()
-        tts.write_to_fp(fp)
-        fp.seek(0)
-        return fp
-    except:
-        return None
+# --- 4. MAIN INTERFACE ---
+st.title("⚖️ FinDiagnostix AI: The Accounting Professor")
+st.write("Upload a document, get the entries, and start a voice conversation.")
 
-# ---------------------------
-# 5. SESSION STATE
-# ---------------------------
-if "audit_report" not in st.session_state:
-    st.session_state.audit_report = ""
+# Session State for Analysis Persistence
+if "analysis_results" not in st.session_state:
+    st.session_state.analysis_results = None
 
-if "current_img" not in st.session_state:
-    st.session_state.current_img = None
+# File Upload Section
+uploaded_file = st.file_uploader("Upload Financial Document (JPG/PNG)", type=["jpg", "png", "jpeg"])
 
-# ---------------------------
-# 6. MAIN UI
-# ---------------------------
-st.title("⚖️ FIN-DIAGNOSTIX AI (GLOBAL PRO)")
-st.write("---")
-
-file = st.file_uploader("Upload Financial Document", type=["jpg", "png", "jpeg"])
-
-if file:
-    st.session_state.current_img = Image.open(file)
-
-if st.session_state.current_img:
-    col1, col2 = st.columns([1, 2])
-
+if uploaded_file:
+    img = Image.open(uploaded_file)
+    col1, col2 = st.columns([1, 1.5])
+    
     with col1:
-        st.image(st.session_state.current_img, caption="Document Loaded")
-
-        if st.button("RUN FULL AUDIT"):
-            try:
-                with st.spinner("AI is analyzing..."):
-
-                    img_b64 = prepare_image(st.session_state.current_img)
-
-                    response = client.chat.completions.create(
-                        model="openai/gpt-oss-120b",
-                        messages=[
-                            {
-                                "role": "system",
-                                "content": "You are a professional financial auditor."
-                            },
-                            {
-                                "role": "user",
-                                "content": f"""
-Analyze this financial document image.
-
-Provide:
-- Journal Entries
-- Errors
-- Risk Analysis
-- Fraud Detection
-- Recommendations
-
-Answer in Arabic.
-
-Image Data:
-{img_b64}
-"""
-                            }
-                        ],
-                        temperature=0.1
-                    )
-
-                    st.session_state.audit_report = response.choices[0].message.content
-
-            except Exception as e:
-                st.error(f"Error: {str(e)}")
-
-    # ---------------------------
-    # 7. REPORT DISPLAY
-    # ---------------------------
-    if st.session_state.audit_report:
-        with col2:
-            st.markdown(
-                f"### 📊 Final Audit Report\n<div class='report-card'>{st.session_state.audit_report}</div>",
-                unsafe_allow_html=True
+        st.image(img, caption="Document Preview", use_container_width=True)
+    
+    # Trigger AI Analysis only once upon upload
+    if st.session_state.analysis_results is None:
+        with st.spinner("Professor is analyzing the document..."):
+            img_b64 = encode_image(img)
+            response = client.chat.completions.create(
+                model="llama-3.2-11b-vision-preview",
+                messages=[
+                    {
+                        "role": "system", 
+                        "content": "You are a professional Accounting Professor. Analyze the image, extract Journal Entries, and explain them briefly in ARABIC."
+                    },
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "Analyze this document and provide accounting entries with a short explanation in Arabic."},
+                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}}
+                        ]
+                    }
+                ]
             )
+            st.session_state.analysis_results = response.choices[0].message.content
 
-# ---------------------------
-# 8. AI CHAT
-# ---------------------------
-if st.session_state.audit_report:
+    with col2:
+        st.markdown("### 📊 Analysis & Journal Entries")
+        st.markdown(f"<div class='report-card'>{st.session_state.analysis_results}</div>", unsafe_allow_html=True)
+
+# --- 5. INTERACTIVE VOICE CHAT ---
+if st.session_state.analysis_results:
     st.write("---")
+    st.subheader("🎙️ Ask the Professor via Voice")
+    
+    # Mic Component
+    audio_record = mic_recorder(
+        start_prompt="Click to Speak", 
+        stop_prompt="Stop & Send", 
+        key='recorder'
+    )
 
-    query = st.chat_input("Ask the AI Professor...")
+    if audio_record:
+        # Step A: Voice to Text
+        with st.spinner("Listening..."):
+            user_text = speech_to_text(audio_record['bytes'])
+            st.info(f"You said: {user_text}")
 
-    if query:
-        response = client.chat.completions.create(
-            model="openai/gpt-oss-120b",
-            messages=[
-                {"role": "system", "content": "You are a professional Accounting Professor. Answer in Arabic."},
-                {"role": "user", "content": f"Context:\n{st.session_state.audit_report}\n\nQuestion: {query}"}
-            ],
-            temperature=0.2
-        )
+        # Step B: Chat with Context
+        with st.spinner("The Professor is responding..."):
+            res = client.chat.completions.create(
+                model="llama3-70b-8192",
+                messages=[
+                    {"role": "system", "content": "You are a helpful Accounting Professor. Answer questions based on the previous analysis in ARABIC. Be concise."},
+                    {"role": "assistant", "content": st.session_state.analysis_results},
+                    {"role": "user", "content": user_text}
+                ]
+            )
+            professor_answer = res.choices[0].message.content
+            st.success(f"Professor: {professor_answer}")
 
-        answer = response.choices[0].message.content
-
-        with st.chat_message("assistant"):
-            st.write(answer)
-
-            audio = generate_voice(answer)
-            if audio:
-                st.audio(audio)
+            # Step C: Text to Voice (Autoplay)
+            voice_output = text_to_speech(professor_answer)
+            st.audio(voice_output, format='audio/mp3', autoplay=True)
+    

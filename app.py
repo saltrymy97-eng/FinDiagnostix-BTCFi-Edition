@@ -1,79 +1,154 @@
 import streamlit as st
-from groq import Groq
-from PIL import Image
-import easyocr
-import numpy as np
-from gtts import gTTS
-import speech_recognition as sr
-import os
+import sqlite3
+import pandas as pd
 
-client = Groq(api_key="YOUR_API_KEY")
-reader = easyocr.Reader(['en', 'ar'])
+# =========================
+# DATABASE
+# =========================
+DB_NAME = "supermarket.db"
 
-# 📷 OCR
-def extract_text(image):
-    image = np.array(image)
-    return "\n".join(reader.readtext(image, detail=0))
+def get_conn():
+    return sqlite3.connect(DB_NAME)
 
-# 🤖 AI accounting
-def analyze(text):
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[
-            {
-                "role": "system",
-                "content": "You are an accounting teacher. Extract journal entries and explain briefly."
-            },
-            {"role": "user", "content": text}
-        ],
-        temperature=0.2
+def init_db():
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS products (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT,
+        price REAL,
+        stock INTEGER
     )
-    return response.choices[0].message.content
+    """)
 
-# 🎤 voice to text
-def voice_to_text(audio_file):
-    r = sr.Recognizer()
-    with sr.AudioFile(audio_file) as source:
-        audio = r.record(source)
-    return r.recognize_google(audio)
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS sales (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        product TEXT,
+        quantity INTEGER,
+        total REAL
+    )
+    """)
 
-# 🔊 text to voice
-def text_to_voice(text):
-    tts = gTTS(text)
-    tts.save("voice.mp3")
-    return "voice.mp3"
+    conn.commit()
+    conn.close()
 
+init_db()
 
-# 🎯 UI
-st.title("FIN-DIAGNOSTIX AI")
+# =========================
+# SESSION CART
+# =========================
+if "cart" not in st.session_state:
+    st.session_state.cart = []
 
-# 📷 Image part
-file = st.file_uploader("Upload Image")
+st.set_page_config(page_title="Supermarket POS", layout="wide")
+st.title("🛒 Supermarket POS System")
 
-if file:
-    img = Image.open(file)
-    st.image(img)
+conn = get_conn()
+cur = conn.cursor()
 
-    text = extract_text(img)
-    st.text_area("Extracted Text", text)
+# =========================
+# TABS
+# =========================
+tab1, tab2, tab3 = st.tabs(["📦 Products", "🛒 Cashier", "📊 Reports"])
 
-    if st.button("Generate Accounting Entries"):
-        result = analyze(text)
-        st.write(result)
+# =========================
+# TAB 1 - PRODUCTS
+# =========================
+with tab1:
+    st.header("Product Management")
 
-        audio = text_to_voice(result)
-        st.audio(audio)
+    name = st.text_input("Product Name")
+    price = st.number_input("Price", min_value=0.0, step=0.5)
+    stock = st.number_input("Stock", min_value=0, step=1)
 
-# 🎤 Voice input
-audio_file = st.file_uploader("Upload Voice", type=["wav"])
+    if st.button("Add Product"):
+        cur.execute("INSERT INTO products (name, price, stock) VALUES (?, ?, ?)",
+                    (name, price, stock))
+        conn.commit()
+        st.success("Product added!")
 
-if audio_file:
-    text = voice_to_text(audio_file)
-    st.write("You said:", text)
+    st.subheader("All Products")
+    products = pd.read_sql("SELECT * FROM products", conn)
+    st.dataframe(products, use_container_width=True)
 
-    if st.button("Answer"):
-        result = analyze(text)
-        st.write(result)
+    # Delete product
+    del_id = st.number_input("Delete Product ID", min_value=1, step=1)
+    if st.button("Delete Product"):
+        cur.execute("DELETE FROM products WHERE id=?", (del_id,))
+        conn.commit()
+        st.warning("Product deleted!")
 
-        audio = text_to_voice(result)
-        st.audio(audio)
+# =========================
+# TAB 2 - CASHIER
+# =========================
+with tab2:
+    st.header("Cashier System")
+
+    products = pd.read_sql("SELECT * FROM products", conn)
+    product_list = products["name"].tolist() if not products.empty else []
+
+    selected = st.selectbox("Select Product", product_list)
+    qty = st.number_input("Quantity", min_value=1, step=1)
+
+    if st.button("Add to Cart"):
+        cur.execute("SELECT price, stock FROM products WHERE name=?", (selected,))
+        item = cur.fetchone()
+
+        if item:
+            price, stock = item
+
+            if stock >= qty:
+                st.session_state.cart.append({
+                    "name": selected,
+                    "price": price,
+                    "qty": qty,
+                    "total": price * qty
+                })
+                st.success("Added to cart!")
+            else:
+                st.error("Not enough stock")
+
+    st.subheader("🧾 Cart")
+
+    if st.session_state.cart:
+        cart_df = pd.DataFrame(st.session_state.cart)
+        st.dataframe(cart_df, use_container_width=True)
+
+        total = cart_df["total"].sum()
+        st.metric("Total Amount", f"${total}")
+
+        if st.button("Checkout"):
+            for item in st.session_state.cart:
+                cur.execute("UPDATE products SET stock = stock - ? WHERE name=?",
+                            (item["qty"], item["name"]))
+
+                cur.execute("INSERT INTO sales (product, quantity, total) VALUES (?, ?, ?)",
+                            (item["name"], item["qty"], item["total"]))
+
+            conn.commit()
+            st.session_state.cart = []
+            st.success("Payment Completed!")
+    else:
+        st.info("Cart is empty")
+
+# =========================
+# TAB 3 - REPORTS
+# =========================
+with tab3:
+    st.header("Sales Reports")
+
+    sales = pd.read_sql("SELECT * FROM sales", conn)
+    st.dataframe(sales, use_container_width=True)
+
+    total_sales = sales["total"].sum() if not sales.empty else 0
+    st.metric("Total Revenue", f"${total_sales}")
+
+    st.subheader("Top Products")
+    if not sales.empty:
+        top = sales.groupby("product")["quantity"].sum().reset_index()
+        st.dataframe(top)
+
+conn.close()

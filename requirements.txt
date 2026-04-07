@@ -1,7 +1,7 @@
 streamlit
-groq
-pillow
-easyocr
-numpy
-speechrecognition
-gtts
+pandas
+openpyxl
+reportlab
+bcrypt
+python-barcode
+opencv-python

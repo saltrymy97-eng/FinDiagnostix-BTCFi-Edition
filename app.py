@@ -9,10 +9,13 @@ import matplotlib.pyplot as plt
 DB_NAME = "pos.db"
 CURRENCY = "YER (﷼)"
 
-st.set_page_config(page_title="Extra Sales System", layout="wide")
+st.set_page_config(
+    page_title="Extra Sales System",
+    layout="wide"
+)
 
 # =========================
-# SIMPLE USERS SYSTEM
+# USERS
 # =========================
 USERS = {
     "admin": "1234",
@@ -22,9 +25,9 @@ USERS = {
 if "user" not in st.session_state:
     st.session_state.user = None
 
-# LOGIN PAGE
+# LOGIN
 if st.session_state.user is None:
-    st.title("🔐 Login - Extra Sales System")
+    st.title("🔐 Extra Sales System - Login")
 
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
@@ -85,43 +88,67 @@ if "cart" not in st.session_state:
 # HEADER
 # =========================
 st.title("🛒 EXTRA SALES SYSTEM")
-st.subheader(f"Logged in as: {st.session_state.user}")
+st.caption(f"Logged in as: {st.session_state.user}")
 
 if st.sidebar.button("Logout"):
     st.session_state.user = None
     st.rerun()
 
-# =========================
-# MENU
-# =========================
 menu = st.sidebar.selectbox("Menu", ["Dashboard", "Products", "Cashier", "Reports"])
 
 # =========================
 # DASHBOARD
 # =========================
 if menu == "Dashboard":
-    st.header("📊 Dashboard")
+    st.markdown("## 📊 Dashboard Overview")
 
     products = pd.read_sql("SELECT * FROM products", conn)
     sales = pd.read_sql("SELECT * FROM sales", conn)
 
     total_sales = sales["total"].sum() if not sales.empty else 0
+    total_items = sales["qty"].sum() if not sales.empty else 0
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
 
     col1.metric("Products", len(products))
-    col2.metric("Sales", len(sales))
-    col3.metric("Revenue", f"{total_sales} {CURRENCY}")
+    col2.metric("Sales Transactions", len(sales))
+    col3.metric("Total Revenue", f"{total_sales} {CURRENCY}")
+    col4.metric("Items Sold", total_items)
+
+    st.divider()
+
+    colA, colB = st.columns(2)
+
+    with colA:
+        st.markdown("### 📈 Sales Chart")
+
+        if not sales.empty:
+            fig, ax = plt.subplots()
+            sales.groupby("product")["qty"].sum().plot(kind="bar", ax=ax)
+            st.pyplot(fig)
+        else:
+            st.info("No sales data available")
+
+    with colB:
+        st.markdown("### 🧾 Recent Transactions")
+        st.dataframe(sales.tail(10), use_container_width=True)
 
 # =========================
 # PRODUCTS
 # =========================
 elif menu == "Products":
-    st.header("📦 Product Management")
+    st.markdown("## 📦 Product Management")
 
-    name = st.text_input("Product Name")
-    price = st.number_input("Price", min_value=0.0)
-    stock = st.number_input("Stock", min_value=0)
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        name = st.text_input("Product Name")
+
+    with col2:
+        price = st.number_input("Price", min_value=0.0)
+
+    with col3:
+        stock = st.number_input("Stock", min_value=0)
 
     if st.button("Add Product"):
         if name.strip():
@@ -133,17 +160,15 @@ elif menu == "Products":
                 st.rerun()
             except:
                 st.error("Product already exists ❌")
-        else:
-            st.error("Enter product name")
 
-    products = pd.read_sql("SELECT * FROM products", conn)
-    st.dataframe(products, use_container_width=True)
+    st.markdown("### 📋 Product List")
+    st.dataframe(pd.read_sql("SELECT * FROM products", conn), use_container_width=True)
 
 # =========================
 # CASHIER
 # =========================
 elif menu == "Cashier":
-    st.header("🛒 Cashier System")
+    st.markdown("## 🛒 Cashier Screen")
 
     products = pd.read_sql("SELECT * FROM products", conn)
 
@@ -164,21 +189,21 @@ elif menu == "Cashier":
                     "qty": qty,
                     "total": row["price"] * qty
                 })
-                st.success("Added ✔")
+                st.success("Added to cart ✔")
             else:
-                st.error("Not enough stock")
+                st.error("Not enough stock ❌")
 
-    st.subheader("🧾 Cart")
+    st.markdown("### 🧾 Cart")
 
     if st.session_state.cart:
         df = pd.DataFrame(st.session_state.cart)
-        st.dataframe(df)
+        st.dataframe(df, use_container_width=True)
 
         subtotal = df["total"].sum()
-        discount = st.number_input("Discount (%)", 0, 100, 0)
+        discount = st.slider("Discount (%)", 0, 100, 0)
         total = subtotal - (subtotal * discount / 100)
 
-        st.metric("Total", f"{total} {CURRENCY}")
+        st.metric("Final Total", f"{total} {CURRENCY}")
 
         if st.button("Checkout 💰"):
             for item in st.session_state.cart:
@@ -190,7 +215,6 @@ elif menu == "Cashier":
 
             conn.commit()
             st.session_state.cart = []
-
             st.success("Payment completed ✔")
             st.balloons()
             st.rerun()
@@ -202,20 +226,20 @@ elif menu == "Cashier":
 # REPORTS
 # =========================
 elif menu == "Reports":
-    st.header("📊 Reports")
+    st.markdown("## 📊 Reports")
 
     sales = pd.read_sql("SELECT * FROM sales", conn)
 
-    st.dataframe(sales)
+    st.dataframe(sales, use_container_width=True)
 
     total = sales["total"].sum() if not sales.empty else 0
-    st.metric("Revenue", f"{total} {CURRENCY}")
+    st.metric("Total Revenue", f"{total} {CURRENCY}")
 
     if not sales.empty:
-        chart = sales.groupby("product")["qty"].sum()
+        st.markdown("### 📈 Sales Analysis")
 
         fig, ax = plt.subplots()
-        chart.plot(kind="bar", ax=ax)
+        sales.groupby("product")["qty"].sum().plot(kind="bar", ax=ax)
         st.pyplot(fig)
 
 conn.close()

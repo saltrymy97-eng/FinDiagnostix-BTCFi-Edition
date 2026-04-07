@@ -11,7 +11,50 @@ DB_NAME = "pos.db"
 CURRENCY = "YER (﷼)"
 
 # =========================
-# DATABASE
+# PAGE CONFIG
+# =========================
+st.set_page_config(
+    page_title="Extra Sales System",
+    layout="wide",
+    page_icon="🛒"
+)
+
+# =========================
+# CUSTOM CSS (Enterprise UI)
+# =========================
+st.markdown("""
+<style>
+.main {
+    background-color: #0f172a;
+    color: white;
+}
+
+h1, h2, h3 {
+    color: #38bdf8;
+}
+
+.stTabs [data-baseweb="tab"] {
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.card {
+    background-color: #1e293b;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0px 0px 10px rgba(0,0,0,0.3);
+}
+</style>
+""", unsafe_allow_html=True)
+
+# =========================
+# TITLE
+# =========================
+st.title("🛒 EXTRA SALES SYSTEM")
+st.subheader("نظام المبيعات اكسترا - Professional POS Dashboard")
+
+# =========================
+# DB
 # =========================
 def get_conn():
     return sqlite3.connect(DB_NAME, check_same_thread=False)
@@ -43,12 +86,6 @@ def init_db():
 
 init_db()
 
-# =========================
-# APP SETTINGS
-# =========================
-st.set_page_config(page_title="Supermarket POS", layout="wide")
-st.title("🛒 Supermarket POS System - Yemen")
-
 conn = get_conn()
 cur = conn.cursor()
 
@@ -59,35 +96,47 @@ if "cart" not in st.session_state:
     st.session_state.cart = []
 
 # =========================
-# PDF INVOICE
+# SIDEBAR MENU
 # =========================
-def generate_invoice(cart, total):
-    file_name = "invoice.pdf"
-    c = canvas.Canvas(file_name)
-
-    c.drawString(200, 800, "SUPERMARKET INVOICE")
-
-    y = 750
-    for item in cart:
-        line = f"{item['name']} | {item['qty']} x {item['price']} = {item['total']}"
-        c.drawString(50, y, line)
-        y -= 20
-
-    c.drawString(50, y - 20, f"TOTAL: {total} {CURRENCY}")
-    c.save()
-
-    return file_name
+menu = st.sidebar.selectbox(
+    "📌 Navigation",
+    ["Dashboard", "Products", "Cashier", "Reports"]
+)
 
 # =========================
-# TABS
+# DASHBOARD
 # =========================
-tab1, tab2, tab3 = st.tabs(["📦 Products", "🛒 Cashier", "📊 Reports"])
+if menu == "Dashboard":
+    st.header("📊 Dashboard Overview")
+
+    products = pd.read_sql("SELECT * FROM products", conn)
+    sales = pd.read_sql("SELECT * FROM sales", conn)
+
+    total_sales = sales["total"].sum() if not sales.empty else 0
+    total_products = len(products)
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.metric("Total Products", total_products)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    with col2:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.metric("Total Sales", f"{total_sales} {CURRENCY}")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    with col3:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.metric("Transactions", len(sales))
+        st.markdown('</div>', unsafe_allow_html=True)
 
 # =========================
-# PRODUCTS TAB
+# PRODUCTS
 # =========================
-with tab1:
-    st.header("Product Management")
+elif menu == "Products":
+    st.header("📦 Product Management")
 
     name = st.text_input("Product Name")
     price = st.number_input("Price", min_value=0.0)
@@ -98,19 +147,18 @@ with tab1:
             cur.execute("INSERT INTO products VALUES (NULL,?,?,?)",
                         (name, price, stock))
             conn.commit()
-            st.success("Product added successfully ✔")
+            st.success("Product added ✔")
         except:
             st.error("Product already exists ❌")
 
-    st.subheader("All Products")
     products = pd.read_sql("SELECT * FROM products", conn)
     st.dataframe(products, use_container_width=True)
 
 # =========================
-# CASHIER TAB
+# CASHIER
 # =========================
-with tab2:
-    st.header("Cashier System")
+elif menu == "Cashier":
+    st.header("🛒 Cashier System")
 
     products = pd.read_sql("SELECT * FROM products", conn)
 
@@ -128,9 +176,9 @@ with tab2:
                     "qty": qty,
                     "total": row["price"] * qty
                 })
-                st.success("Added to cart ✔")
+                st.success("Added ✔")
             else:
-                st.error("Not enough stock ❌")
+                st.error("Not enough stock")
 
     st.subheader("🧾 Cart")
 
@@ -141,52 +189,37 @@ with tab2:
         total = df["total"].sum()
         st.metric("Total", f"{total} {CURRENCY}")
 
-        col1, col2 = st.columns(2)
+        if st.button("Checkout 💰"):
+            for item in st.session_state.cart:
+                cur.execute(
+                    "UPDATE products SET stock = stock - ? WHERE name=?",
+                    (item["qty"], item["name"])
+                )
 
-        # Checkout
-        with col1:
-            if st.button("💰 Checkout"):
-                for item in st.session_state.cart:
-                    cur.execute(
-                        "UPDATE products SET stock = stock - ? WHERE name=?",
-                        (item["qty"], item["name"])
-                    )
+                cur.execute(
+                    "INSERT INTO sales VALUES (NULL,?,?,?)",
+                    (item["name"], item["qty"], item["total"])
+                )
 
-                    cur.execute(
-                        "INSERT INTO sales VALUES (NULL,?,?,?)",
-                        (item["name"], item["qty"], item["total"])
-                    )
-
-                conn.commit()
-
-                pdf = generate_invoice(st.session_state.cart, total)
-                st.session_state.cart = []
-
-                with open(pdf, "rb") as f:
-                    st.download_button("Download Invoice PDF", f, file_name="invoice.pdf")
-
-                st.success("Payment completed ✔")
-
-        # Clear cart
-        with col2:
-            if st.button("Clear Cart"):
-                st.session_state.cart = []
-                st.warning("Cart cleared")
+            conn.commit()
+            st.session_state.cart = []
+            st.success("Payment Completed ✔")
 
     else:
         st.info("Cart is empty")
 
 # =========================
-# REPORTS TAB
+# REPORTS
 # =========================
-with tab3:
-    st.header("Sales Reports")
+elif menu == "Reports":
+    st.header("📊 Sales Reports")
 
     sales = pd.read_sql("SELECT * FROM sales", conn)
+
     st.dataframe(sales, use_container_width=True)
 
     total_sales = sales["total"].sum() if not sales.empty else 0
-    st.metric("Total Revenue", f"{total_sales} {CURRENCY}")
+    st.metric("Revenue", f"{total_sales} {CURRENCY}")
 
     if not sales.empty:
         chart = sales.groupby("product")["qty"].sum()

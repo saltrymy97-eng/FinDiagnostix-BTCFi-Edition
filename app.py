@@ -4,18 +4,18 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # =========================
-# SETTINGS
+# الإعدادات
 # =========================
 DB_NAME = "pos.db"
-CURRENCY = "YER (﷼)"
+CURRENCY = "ريال يمني (﷼)"
 
 st.set_page_config(
-    page_title="Extra Sales System",
+    page_title="نظام المبيعات اكسترا",
     layout="wide"
 )
 
 # =========================
-# DB
+# قاعدة البيانات
 # =========================
 def get_conn():
     return sqlite3.connect(DB_NAME, check_same_thread=False)
@@ -51,24 +51,24 @@ conn = get_conn()
 cur = conn.cursor()
 
 # =========================
-# CART
+# السلة
 # =========================
 if "cart" not in st.session_state:
     st.session_state.cart = []
 
 # =========================
-# HEADER
+# العنوان
 # =========================
-st.title("🛒 EXTRA SALES SYSTEM")
-st.caption("Simple POS for Small Shops")
+st.title("🛒 نظام المبيعات اكسترا")
+st.caption("نظام كاشير بسيط للمحلات الصغيرة")
 
-menu = st.sidebar.selectbox("Menu", ["Dashboard", "Products", "Cashier", "Reports"])
+menu = st.sidebar.selectbox("القائمة", ["لوحة التحكم", "المنتجات", "الكاشير", "التقارير"])
 
 # =========================
-# DASHBOARD
+# لوحة التحكم
 # =========================
-if menu == "Dashboard":
-    st.markdown("## 📊 Dashboard Overview")
+if menu == "لوحة التحكم":
+    st.markdown("## 📊 لوحة التحكم")
 
     products = pd.read_sql("SELECT * FROM products", conn)
     sales = pd.read_sql("SELECT * FROM sales", conn)
@@ -78,102 +78,90 @@ if menu == "Dashboard":
 
     col1, col2, col3, col4 = st.columns(4)
 
-    col1.metric("Products", len(products))
-    col2.metric("Sales Transactions", len(sales))
-    col3.metric("Total Revenue", f"{total_sales} {CURRENCY}")
-    col4.metric("Items Sold", total_items)
+    col1.metric("📦 عدد المنتجات", len(products))
+    col2.metric("🧾 عدد العمليات", len(sales))
+    col3.metric("💰 إجمالي الإيرادات", f"{total_sales} {CURRENCY}")
+    col4.metric("🛒 القطع المباعة", total_items)
 
     st.divider()
 
     colA, colB = st.columns(2)
 
     with colA:
-        st.markdown("### 📈 Sales Chart")
-
+        st.markdown("### 📈 رسم المبيعات")
         if not sales.empty:
             fig, ax = plt.subplots()
             sales.groupby("product")["qty"].sum().plot(kind="bar", ax=ax)
             st.pyplot(fig)
         else:
-            st.info("No sales data available")
+            st.info("لا توجد بيانات")
 
     with colB:
-        st.markdown("### 🧾 Recent Transactions")
+        st.markdown("### 🧾 آخر العمليات")
         st.dataframe(sales.tail(10), use_container_width=True)
 
 # =========================
-# PRODUCTS
+# المنتجات
 # =========================
-elif menu == "Products":
-    st.markdown("## 📦 Product Management")
+elif menu == "المنتجات":
+    st.markdown("## 📦 إدارة المنتجات")
 
-    col1, col2, col3 = st.columns(3)
+    name = st.text_input("اسم المنتج")
+    price = st.number_input("السعر", min_value=0.0)
+    stock = st.number_input("المخزون", min_value=0)
 
-    with col1:
-        name = st.text_input("Product Name")
-
-    with col2:
-        price = st.number_input("Price", min_value=0.0)
-
-    with col3:
-        stock = st.number_input("Stock", min_value=0)
-
-    if st.button("Add Product"):
+    if st.button("إضافة منتج"):
         if name.strip():
             try:
                 cur.execute("INSERT INTO products VALUES (NULL,?,?,?)",
                             (name, price, stock))
                 conn.commit()
-                st.success("Product added ✔")
+                st.success("تمت الإضافة ✔")
                 st.rerun()
             except:
-                st.error("Product already exists ❌")
+                st.error("المنتج موجود ❌")
 
-    st.markdown("### 📋 Product List")
     st.dataframe(pd.read_sql("SELECT * FROM products", conn), use_container_width=True)
 
 # =========================
-# CASHIER
+# الكاشير
 # =========================
-elif menu == "Cashier":
-    st.markdown("## 🛒 Cashier Screen")
+elif menu == "الكاشير":
+    st.markdown("## 🛒 الكاشير")
 
     products = pd.read_sql("SELECT * FROM products", conn)
 
-    search = st.text_input("Search Product")
+    search = st.text_input("بحث عن منتج")
     filtered = products[products["name"].str.contains(search, case=False)] if search else products
 
     if not filtered.empty:
-        selected = st.selectbox("Select Product", filtered["name"])
-        qty = st.number_input("Quantity", min_value=1)
+        product = st.selectbox("اختر المنتج", filtered["name"])
+        qty = st.number_input("الكمية", min_value=1)
 
-        if st.button("Add to Cart"):
-            row = products[products["name"] == selected].iloc[0]
+        if st.button("إضافة للسلة"):
+            row = products[products["name"] == product].iloc[0]
 
             if row["stock"] >= qty:
                 st.session_state.cart.append({
-                    "name": selected,
+                    "name": product,
                     "price": row["price"],
                     "qty": qty,
                     "total": row["price"] * qty
                 })
-                st.success("Added to cart ✔")
+                st.success("تمت الإضافة ✔")
             else:
-                st.error("Not enough stock ❌")
+                st.error("المخزون غير كافي")
 
-    st.markdown("### 🧾 Cart")
+    st.markdown("### 🧾 السلة")
 
     if st.session_state.cart:
         df = pd.DataFrame(st.session_state.cart)
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(df)
 
-        subtotal = df["total"].sum()
-        discount = st.slider("Discount (%)", 0, 100, 0)
-        total = subtotal - (subtotal * discount / 100)
+        total = df["total"].sum()
+        st.metric("الإجمالي", f"{total} {CURRENCY}")
 
-        st.metric("Final Total", f"{total} {CURRENCY}")
-
-        if st.button("Checkout 💰"):
+        if st.button("إتمام البيع"):
             for item in st.session_state.cart:
                 cur.execute("UPDATE products SET stock = stock - ? WHERE name=?",
                             (item["qty"], item["name"]))
@@ -183,31 +171,23 @@ elif menu == "Cashier":
 
             conn.commit()
             st.session_state.cart = []
-            st.success("Payment completed ✔")
-            st.balloons()
+            st.success("تم البيع بنجاح ✔")
             st.rerun()
 
     else:
-        st.info("Cart is empty")
+        st.info("السلة فارغة")
 
 # =========================
-# REPORTS
+# التقارير
 # =========================
-elif menu == "Reports":
-    st.markdown("## 📊 Reports")
+elif menu == "التقارير":
+    st.markdown("## 📊 التقارير")
 
     sales = pd.read_sql("SELECT * FROM sales", conn)
 
-    st.dataframe(sales, use_container_width=True)
+    st.dataframe(sales)
 
     total = sales["total"].sum() if not sales.empty else 0
-    st.metric("Total Revenue", f"{total} {CURRENCY}")
-
-    if not sales.empty:
-        st.markdown("### 📈 Sales Analysis")
-
-        fig, ax = plt.subplots()
-        sales.groupby("product")["qty"].sum().plot(kind="bar", ax=ax)
-        st.pyplot(fig)
+    st.metric("إجمالي الإيرادات", f"{total} {CURRENCY}")
 
 conn.close()

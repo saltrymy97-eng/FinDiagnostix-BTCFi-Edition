@@ -15,34 +15,6 @@ st.set_page_config(
 )
 
 # =========================
-# USERS
-# =========================
-USERS = {
-    "admin": "1234",
-    "cashier": "1111"
-}
-
-if "user" not in st.session_state:
-    st.session_state.user = None
-
-# LOGIN
-if st.session_state.user is None:
-    st.title("🔐 Extra Sales System - Login")
-
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
-
-    if st.button("Login"):
-        if username in USERS and USERS[username] == password:
-            st.session_state.user = username
-            st.success("Login successful ✔")
-            st.rerun()
-        else:
-            st.error("Invalid credentials ❌")
-
-    st.stop()
-
-# =========================
 # DB
 # =========================
 def get_conn():
@@ -88,11 +60,7 @@ if "cart" not in st.session_state:
 # HEADER
 # =========================
 st.title("🛒 EXTRA SALES SYSTEM")
-st.caption(f"Logged in as: {st.session_state.user}")
-
-if st.sidebar.button("Logout"):
-    st.session_state.user = None
-    st.rerun()
+st.caption("Simple POS for Small Shops")
 
 menu = st.sidebar.selectbox("Menu", ["Dashboard", "Products", "Cashier", "Reports"])
 

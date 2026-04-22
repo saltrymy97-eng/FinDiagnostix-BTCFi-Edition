@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 # =========================
 DB_NAME = "pos.db"
 CURRENCY = "ريال يمني (﷼)"
+LOW_STOCK_THRESHOLD = 5  # حد المخزون المنخفض
 
 st.set_page_config(
     page_title="نظام المبيعات اكسترا",
@@ -57,10 +58,61 @@ if "cart" not in st.session_state:
     st.session_state.cart = []
 
 # =========================
+# دوال التحسينات الذكية
+# =========================
+def get_low_stock_products():
+    """جلب المنتجات التي وصل مخزونها للحد الأدنى"""
+    query = f"""
+    SELECT name, stock FROM products
+    WHERE stock <= {LOW_STOCK_THRESHOLD}
+    ORDER BY stock ASC
+    """
+    df = pd.read_sql(query, conn)
+    return df
+
+def get_top_selling_products(limit=5):
+    """جلب أكثر المنتجات مبيعاً"""
+    query = f"""
+    SELECT product, SUM(qty) as total_qty
+    FROM sales
+    GROUP BY product
+    ORDER BY total_qty DESC
+    LIMIT {limit}
+    """
+    df = pd.read_sql(query, conn)
+    return df
+
+def generate_sales_insight():
+    """توليد جملة تحليلية ذكية عن المبيعات"""
+    sales_df = pd.read_sql("SELECT * FROM sales", conn)
+    products_df = pd.read_sql("SELECT * FROM products", conn)
+
+    if sales_df.empty:
+        return "لا توجد مبيعات مسجلة بعد لتحليلها."
+
+    total_revenue = sales_df["total"].sum()
+    total_quantity = sales_df["qty"].sum()
+
+    # المنتج الأكثر مبيعاً
+    top_product = sales_df.groupby("product")["qty"].sum().idxmax()
+    top_qty = sales_df.groupby("product")["qty"].sum().max()
+    top_percentage = (top_qty / total_quantity) * 100
+
+    insight = (
+        f"📊 **تحليل ذكي للمبيعات:**\n\n"
+        f"إجمالي الإيرادات: **{total_revenue:,.2f}** {CURRENCY}.\n"
+        f"إجمالي القطع المباعة: **{int(total_quantity)}** قطعة.\n"
+        f"أفضل منتج لديك هو **{top_product}**، حيث تم بيع **{int(top_qty)}** قطعة، "
+        f"ويمثل **{top_percentage:.1f}%** من إجمالي مبيعاتك.\n\n"
+        f"💡 **نصيحة:** ركز على ترويج هذا المنتج وحافظ على مخزونه لتلبية الطلب."
+    )
+    return insight
+
+# =========================
 # العنوان
 # =========================
 st.title("🛒 نظام المبيعات اكسترا")
-st.caption("نظام كاشير بسيط للمحلات الصغيرة")
+st.caption("نظام كاشير بسيط مع تحسينات ذكية")
 
 menu = st.sidebar.selectbox("القائمة", ["لوحة التحكم", "المنتجات", "الكاشير", "التقارير"])
 
@@ -82,6 +134,22 @@ if menu == "لوحة التحكم":
     col2.metric("🧾 عدد العمليات", len(sales))
     col3.metric("💰 إجمالي الإيرادات", f"{total_sales} {CURRENCY}")
     col4.metric("🛒 القطع المباعة", total_items)
+
+    st.divider()
+
+    # ===== تنبيهات المخزون الذكية =====
+    low_stock = get_low_stock_products()
+    if not low_stock.empty:
+        st.warning("⚠️ **تنبيه مخزون منخفض:** المنتجات التالية وصلت لحد إعادة الطلب:")
+        for _, row in low_stock.iterrows():
+            st.write(f"- {row['name']}: {row['stock']} قطعة فقط متبقية")
+    else:
+        st.success("✅ جميع المنتجات بمخزون جيد (أعلى من {LOW_STOCK_THRESHOLD}).")
+
+    st.divider()
+
+    # ===== التحليل الذكي للمبيعات =====
+    st.markdown(generate_sales_insight())
 
     st.divider()
 
@@ -130,6 +198,23 @@ elif menu == "الكاشير":
     st.markdown("## 🛒 الكاشير")
 
     products = pd.read_sql("SELECT * FROM products", conn)
+
+    # ===== اقتراحات المنتجات الذكية =====
+    top_products = get_top_selling_products()
+    if not top_products.empty:
+        st.markdown("### 🔥 المنتجات الأكثر مبيعاً (اقتراحات سريعة)")
+        cols = st.columns(len(top_products))
+        for idx, (_, row) in enumerate(top_products.iterrows()):
+            with cols[idx]:
+                if st.button(f"{row['product']}\n({int(row['total_qty'])})", key=f"top_{idx}"):
+                    st.session_state.cart.append({
+                        "name": row['product'],
+                        "price": products[products["name"]==row['product']]["price"].values[0],
+                        "qty": 1,
+                        "total": products[products["name"]==row['product']]["price"].values[0]
+                    })
+                    st.success(f"تمت إضافة {row['product']} ✔")
+        st.divider()
 
     search = st.text_input("بحث عن منتج")
     filtered = products[products["name"].str.contains(search, case=False)] if search else products

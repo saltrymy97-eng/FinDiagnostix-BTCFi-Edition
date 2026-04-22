@@ -4,16 +4,94 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # =========================
-# الإعدادات
+# الإعدادات العامة
 # =========================
 DB_NAME = "pos.db"
 CURRENCY = "ريال يمني (﷼)"
-LOW_STOCK_THRESHOLD = 5  # حد المخزون المنخفض
+LOW_STOCK_THRESHOLD = 5
 
+# إعدادات الصفحة - واجهة احترافية
 st.set_page_config(
-    page_title="نظام المبيعات اكسترا",
-    layout="wide"
+    page_title="نظام المبيعات X | المسرحية المحاسبية",
+    page_icon="🎭",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
+
+# =========================
+# تنسيقات CSS احترافية
+# =========================
+st.markdown("""
+<style>
+    /* الخلفية العامة */
+    .main {
+        background-color: #f8f9fa;
+    }
+
+    /* العناوين الرئيسية */
+    h1, h2, h3 {
+        color: #1a3e6f;
+        font-family: 'Segoe UI', sans-serif;
+    }
+
+    /* تنسيق الأزرار */
+    .stButton > button {
+        background-color: #1a3e6f;
+        color: white;
+        border-radius: 8px;
+        border: none;
+        padding: 8px 16px;
+        font-weight: bold;
+        transition: all 0.3s;
+        width: 100%;
+    }
+    .stButton > button:hover {
+        background-color: #0f2b4f;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        transform: translateY(-2px);
+    }
+
+    /* تنسيق مربعات القياسات */
+    .metric-card {
+        background-color: white;
+        border-radius: 12px;
+        padding: 16px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        border: 1px solid #e0e0e0;
+        text-align: center;
+    }
+
+    /* تنسيق الجداول */
+    .dataframe {
+        border-radius: 8px;
+        overflow: hidden;
+        border: 1px solid #e0e0e0;
+    }
+
+    /* تنسيق التنبيهات */
+    .stAlert {
+        border-radius: 8px;
+        border-left-width: 6px;
+    }
+
+    /* الشريط الجانبي */
+    .css-1d391kg {
+        background-color: #1a3e6f;
+    }
+    .css-1d391kg .stSelectbox label, .css-1d391kg .stMarkdown {
+        color: white;
+    }
+
+    /* تذييل الصفحة */
+    .footer {
+        text-align: center;
+        margin-top: 40px;
+        padding: 16px;
+        color: #6c757d;
+        border-top: 1px solid #e0e0e0;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # =========================
 # قاعدة البيانات
@@ -24,7 +102,6 @@ def get_conn():
 def init_db():
     conn = get_conn()
     cur = conn.cursor()
-
     cur.execute("""
     CREATE TABLE IF NOT EXISTS products (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -33,7 +110,6 @@ def init_db():
         stock INTEGER
     )
     """)
-
     cur.execute("""
     CREATE TABLE IF NOT EXISTS sales (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -42,12 +118,10 @@ def init_db():
         total REAL
     )
     """)
-
     conn.commit()
     conn.close()
 
 init_db()
-
 conn = get_conn()
 cur = conn.cursor()
 
@@ -61,7 +135,6 @@ if "cart" not in st.session_state:
 # دوال التحسينات الذكية
 # =========================
 def get_low_stock_products():
-    """جلب المنتجات التي وصل مخزونها للحد الأدنى"""
     query = f"""
     SELECT name, stock FROM products
     WHERE stock <= {LOW_STOCK_THRESHOLD}
@@ -71,7 +144,6 @@ def get_low_stock_products():
     return df
 
 def get_top_selling_products(limit=5):
-    """جلب أكثر المنتجات مبيعاً"""
     query = f"""
     SELECT product, SUM(qty) as total_qty
     FROM sales
@@ -83,44 +155,60 @@ def get_top_selling_products(limit=5):
     return df
 
 def generate_sales_insight():
-    """توليد جملة تحليلية ذكية عن المبيعات"""
     sales_df = pd.read_sql("SELECT * FROM sales", conn)
-    products_df = pd.read_sql("SELECT * FROM products", conn)
-
     if sales_df.empty:
-        return "لا توجد مبيعات مسجلة بعد لتحليلها."
+        return "🎭 لا توجد مبيعات مسجلة بعد. ابدأ ببيع منتج لتظهر التحليلات الذكية!"
 
     total_revenue = sales_df["total"].sum()
     total_quantity = sales_df["qty"].sum()
-
-    # المنتج الأكثر مبيعاً
     top_product = sales_df.groupby("product")["qty"].sum().idxmax()
     top_qty = sales_df.groupby("product")["qty"].sum().max()
     top_percentage = (top_qty / total_quantity) * 100
 
-    insight = (
-        f"📊 **تحليل ذكي للمبيعات:**\n\n"
-        f"إجمالي الإيرادات: **{total_revenue:,.2f}** {CURRENCY}.\n"
-        f"إجمالي القطع المباعة: **{int(total_quantity)}** قطعة.\n"
-        f"أفضل منتج لديك هو **{top_product}**، حيث تم بيع **{int(top_qty)}** قطعة، "
-        f"ويمثل **{top_percentage:.1f}%** من إجمالي مبيعاتك.\n\n"
-        f"💡 **نصيحة:** ركز على ترويج هذا المنتج وحافظ على مخزونه لتلبية الطلب."
-    )
+    insight = f"""
+    <div style='background-color: #e8f0fe; padding: 16px; border-radius: 12px; border-right: 6px solid #1a3e6f;'>
+        <h3 style='color: #1a3e6f; margin-top: 0;'>📊 تحليل الأداء المالي</h3>
+        <p style='font-size: 16px;'>
+            💰 إجمالي الإيرادات: <strong>{total_revenue:,.2f} {CURRENCY}</strong><br>
+            🛒 إجمالي القطع المباعة: <strong>{int(total_quantity)}</strong> قطعة<br>
+            🏆 المنتج الأكثر مبيعاً: <strong>{top_product}</strong> ({int(top_qty)} قطعة، {top_percentage:.1f}% من المبيعات)
+        </p>
+        <p style='font-size: 14px; color: #2ecc71; margin-bottom: 0;'>
+            💡 نصيحة استراتيجية: حافظ على مخزون <strong>{top_product}</strong> وضعه في واجهة المتجر.
+        </p>
+    </div>
+    """
     return insight
 
 # =========================
-# العنوان
+# الشريط الجانبي
 # =========================
-st.title("🛒 نظام المبيعات اكسترا")
-st.caption("نظام كاشير بسيط مع تحسينات ذكية")
+with st.sidebar:
+    st.image("https://img.icons8.com/fluency/96/shopping-cart.png", width=80)
+    st.markdown("## 🎭 نظام المبيعات X")
+    st.markdown("### للمسرحية المحاسبية")
+    st.markdown("---")
+    st.markdown("**🎓 جامعة القرآن الكريم**")
+    st.markdown("**📍 غيل باوزير - حضرموت**")
+    st.markdown("---")
+    menu = st.selectbox("📋 القائمة الرئيسية", ["🏠 لوحة التحكم", "📦 إدارة المنتجات", "🛒 الكاشير", "📊 التقارير"])
+    st.markdown("---")
+    st.markdown("**👨‍💻 بواسطة: سالم فهمي التربيمي**")
+    st.markdown("*طالب محاسبة - مبتكر*")
+    st.markdown("---")
+    st.markdown("🎯 *تحويل المحاسبة إلى تجربة حية*")
 
-menu = st.sidebar.selectbox("القائمة", ["لوحة التحكم", "المنتجات", "الكاشير", "التقارير"])
+# =========================
+# المحتوى الرئيسي
+# =========================
+st.title("🎭 نظام المبيعات X | المسرحية المحاسبية")
+st.caption("نظام ذكي لمحاكاة عمليات البيع والشراء - مصمم خصيصًا للورشة التفاعلية")
 
 # =========================
 # لوحة التحكم
 # =========================
-if menu == "لوحة التحكم":
-    st.markdown("## 📊 لوحة التحكم")
+if menu == "🏠 لوحة التحكم":
+    st.markdown("## 📊 لوحة القيادة")
 
     products = pd.read_sql("SELECT * FROM products", conn)
     sales = pd.read_sql("SELECT * FROM sales", conn)
@@ -129,150 +217,151 @@ if menu == "لوحة التحكم":
     total_items = sales["qty"].sum() if not sales.empty else 0
 
     col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.markdown("<div class='metric-card'><h3>📦</h3><h2>{}</h2><p>المنتجات</p></div>".format(len(products)), unsafe_allow_html=True)
+    with col2:
+        st.markdown("<div class='metric-card'><h3>🧾</h3><h2>{}</h2><p>العمليات</p></div>".format(len(sales)), unsafe_allow_html=True)
+    with col3:
+        st.markdown("<div class='metric-card'><h3>💰</h3><h2>{:,.0f}</h2><p>الإيرادات ({})</p></div>".format(total_sales, CURRENCY), unsafe_allow_html=True)
+    with col4:
+        st.markdown("<div class='metric-card'><h3>🛒</h3><h2>{}</h2><p>القطع المباعة</p></div>".format(total_items), unsafe_allow_html=True)
 
-    col1.metric("📦 عدد المنتجات", len(products))
-    col2.metric("🧾 عدد العمليات", len(sales))
-    col3.metric("💰 إجمالي الإيرادات", f"{total_sales} {CURRENCY}")
-    col4.metric("🛒 القطع المباعة", total_items)
+    st.markdown("---")
 
-    st.divider()
-
-    # ===== تنبيهات المخزون الذكية =====
+    # تنبيهات المخزون
     low_stock = get_low_stock_products()
     if not low_stock.empty:
-        st.warning("⚠️ **تنبيه مخزون منخفض:** المنتجات التالية وصلت لحد إعادة الطلب:")
-        for _, row in low_stock.iterrows():
-            st.write(f"- {row['name']}: {row['stock']} قطعة فقط متبقية")
+        warning_msg = "⚠️ **تنبيه مخزون:** " + " | ".join([f"{row['name']} ({row['stock']} قطعة)" for _, row in low_stock.iterrows()])
+        st.warning(warning_msg)
     else:
-        st.success("✅ جميع المنتجات بمخزون جيد (أعلى من {LOW_STOCK_THRESHOLD}).")
+        st.success(f"✅ جميع المنتجات بمخزون آمن (أعلى من {LOW_STOCK_THRESHOLD})")
 
-    st.divider()
+    st.markdown("---")
 
-    # ===== التحليل الذكي للمبيعات =====
-    st.markdown(generate_sales_insight())
+    # التحليل الذكي
+    st.markdown(generate_sales_insight(), unsafe_allow_html=True)
 
-    st.divider()
+    st.markdown("---")
 
     colA, colB = st.columns(2)
-
     with colA:
-        st.markdown("### 📈 رسم المبيعات")
+        st.markdown("### 📈 توزيع المبيعات")
         if not sales.empty:
-            fig, ax = plt.subplots()
-            sales.groupby("product")["qty"].sum().plot(kind="bar", ax=ax)
+            fig, ax = plt.subplots(figsize=(8, 4))
+            sales.groupby("product")["qty"].sum().plot(kind="bar", ax=ax, color="#1a3e6f")
+            ax.set_facecolor("#f8f9fa")
+            plt.xticks(rotation=45)
             st.pyplot(fig)
         else:
-            st.info("لا توجد بيانات")
-
+            st.info("لا توجد بيانات كافية للرسم")
     with colB:
-        st.markdown("### 🧾 آخر العمليات")
+        st.markdown("### 🧾 آخر 10 عمليات بيع")
         st.dataframe(sales.tail(10), use_container_width=True)
 
 # =========================
 # المنتجات
 # =========================
-elif menu == "المنتجات":
+elif menu == "📦 إدارة المنتجات":
     st.markdown("## 📦 إدارة المنتجات")
 
-    name = st.text_input("اسم المنتج")
-    price = st.number_input("السعر", min_value=0.0)
-    stock = st.number_input("المخزون", min_value=0)
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        name = st.text_input("📌 اسم المنتج")
+        price = st.number_input("💵 السعر", min_value=0.0, step=100.0)
+        stock = st.number_input("📊 المخزون الأولي", min_value=0, step=1)
+    with col2:
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("➕ إضافة المنتج", use_container_width=True):
+            if name.strip():
+                try:
+                    cur.execute("INSERT INTO products VALUES (NULL,?,?,?)", (name, price, stock))
+                    conn.commit()
+                    st.success(f"✅ تمت إضافة {name} بنجاح")
+                    st.rerun()
+                except:
+                    st.error("❌ المنتج موجود مسبقاً")
 
-    if st.button("إضافة منتج"):
-        if name.strip():
-            try:
-                cur.execute("INSERT INTO products VALUES (NULL,?,?,?)",
-                            (name, price, stock))
-                conn.commit()
-                st.success("تمت الإضافة ✔")
-                st.rerun()
-            except:
-                st.error("المنتج موجود ❌")
-
+    st.markdown("---")
     st.dataframe(pd.read_sql("SELECT * FROM products", conn), use_container_width=True)
 
 # =========================
 # الكاشير
 # =========================
-elif menu == "الكاشير":
-    st.markdown("## 🛒 الكاشير")
+elif menu == "🛒 الكاشير":
+    st.markdown("## 🛒 واجهة البيع")
 
     products = pd.read_sql("SELECT * FROM products", conn)
 
-    # ===== اقتراحات المنتجات الذكية =====
+    # اقتراحات ذكية
     top_products = get_top_selling_products()
     if not top_products.empty:
-        st.markdown("### 🔥 المنتجات الأكثر مبيعاً (اقتراحات سريعة)")
+        st.markdown("### 🔥 الأكثر مبيعاً (إضافة سريعة)")
         cols = st.columns(len(top_products))
         for idx, (_, row) in enumerate(top_products.iterrows()):
             with cols[idx]:
-                if st.button(f"{row['product']}\n({int(row['total_qty'])})", key=f"top_{idx}"):
+                if st.button(f"➕ {row['product']}\n({int(row['total_qty'])})", key=f"top_{idx}", use_container_width=True):
+                    prod_row = products[products["name"] == row["product"]].iloc[0]
                     st.session_state.cart.append({
-                        "name": row['product'],
-                        "price": products[products["name"]==row['product']]["price"].values[0],
+                        "name": row["product"],
+                        "price": prod_row["price"],
                         "qty": 1,
-                        "total": products[products["name"]==row['product']]["price"].values[0]
+                        "total": prod_row["price"]
                     })
-                    st.success(f"تمت إضافة {row['product']} ✔")
-        st.divider()
+                    st.success(f"✅ تمت إضافة {row['product']}")
+        st.markdown("---")
 
-    search = st.text_input("بحث عن منتج")
-    filtered = products[products["name"].str.contains(search, case=False)] if search else products
+    col1, col2 = st.columns([3, 2])
+    with col1:
+        search = st.text_input("🔍 ابحث عن منتج")
+        filtered = products[products["name"].str.contains(search, case=False)] if search else products
+        if not filtered.empty:
+            product = st.selectbox("📌 اختر المنتج", filtered["name"])
+            qty = st.number_input("🔢 الكمية", min_value=1, step=1)
+            if st.button("🛒 إضافة إلى السلة", use_container_width=True):
+                row = products[products["name"] == product].iloc[0]
+                if row["stock"] >= qty:
+                    st.session_state.cart.append({
+                        "name": product,
+                        "price": row["price"],
+                        "qty": qty,
+                        "total": row["price"] * qty
+                    })
+                    st.success(f"✅ تمت إضافة {qty} × {product}")
+                else:
+                    st.error(f"❌ المخزون غير كافٍ (متوفر: {row['stock']})")
 
-    if not filtered.empty:
-        product = st.selectbox("اختر المنتج", filtered["name"])
-        qty = st.number_input("الكمية", min_value=1)
-
-        if st.button("إضافة للسلة"):
-            row = products[products["name"] == product].iloc[0]
-
-            if row["stock"] >= qty:
-                st.session_state.cart.append({
-                    "name": product,
-                    "price": row["price"],
-                    "qty": qty,
-                    "total": row["price"] * qty
-                })
-                st.success("تمت الإضافة ✔")
-            else:
-                st.error("المخزون غير كافي")
-
-    st.markdown("### 🧾 السلة")
-
-    if st.session_state.cart:
-        df = pd.DataFrame(st.session_state.cart)
-        st.dataframe(df)
-
-        total = df["total"].sum()
-        st.metric("الإجمالي", f"{total} {CURRENCY}")
-
-        if st.button("إتمام البيع"):
-            for item in st.session_state.cart:
-                cur.execute("UPDATE products SET stock = stock - ? WHERE name=?",
-                            (item["qty"], item["name"]))
-
-                cur.execute("INSERT INTO sales VALUES (NULL,?,?,?)",
-                            (item["name"], item["qty"], item["total"]))
-
-            conn.commit()
-            st.session_state.cart = []
-            st.success("تم البيع بنجاح ✔")
-            st.rerun()
-
-    else:
-        st.info("السلة فارغة")
+    with col2:
+        st.markdown("### 🧾 سلة المشتريات")
+        if st.session_state.cart:
+            df = pd.DataFrame(st.session_state.cart)
+            st.dataframe(df, use_container_width=True)
+            total = df["total"].sum()
+            st.metric("💰 الإجمالي", f"{total:,.2f} {CURRENCY}")
+            if st.button("✅ إتمام عملية البيع", use_container_width=True):
+                for item in st.session_state.cart:
+                    cur.execute("UPDATE products SET stock = stock - ? WHERE name=?", (item["qty"], item["name"]))
+                    cur.execute("INSERT INTO sales VALUES (NULL,?,?,?)", (item["name"], item["qty"], item["total"]))
+                conn.commit()
+                st.session_state.cart = []
+                st.success("🎉 تمت عملية البيع بنجاح!")
+                st.rerun()
+        else:
+            st.info("السلة فارغة حالياً")
 
 # =========================
 # التقارير
 # =========================
-elif menu == "التقارير":
-    st.markdown("## 📊 التقارير")
-
+elif menu == "📊 التقارير":
+    st.markdown("## 📊 تقارير المبيعات")
     sales = pd.read_sql("SELECT * FROM sales", conn)
-
-    st.dataframe(sales)
-
+    st.dataframe(sales, use_container_width=True)
     total = sales["total"].sum() if not sales.empty else 0
-    st.metric("إجمالي الإيرادات", f"{total} {CURRENCY}")
+    st.metric("💰 إجمالي الإيرادات", f"{total:,.2f} {CURRENCY}")
+
+# =========================
+# تذييل الصفحة
+# =========================
+st.markdown("---")
+st.markdown("<div class='footer'>🎭 نظام المبيعات X | المسرحية المحاسبية - غيل باوزير © 2026<br>👨‍💻 تصميم وتطوير: سالم فهمي التربيمي</div>", unsafe_allow_html=True)
 
 conn.close()

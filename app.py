@@ -10,85 +10,116 @@ DB_NAME = "pos.db"
 CURRENCY = "ريال يمني (﷼)"
 LOW_STOCK_THRESHOLD = 5
 
-# إعدادات الصفحة - واجهة احترافية
 st.set_page_config(
-    page_title="نظام المبيعات X | المسرحية المحاسبية",
+    page_title="المسرحية المحاسبية | المبيعات X",
     page_icon="🎭",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
 # =========================
-# تنسيقات CSS احترافية
+# تنسيقات CSS احترافية وجذابة
 # =========================
 st.markdown("""
 <style>
-    /* الخلفية العامة */
+    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
+
+    html, body, [class*="css"] {
+        font-family: 'Cairo', sans-serif;
+    }
+
     .main {
-        background-color: #f8f9fa;
+        background-color: #f4f7f9;
     }
 
-    /* العناوين الرئيسية */
-    h1, h2, h3 {
-        color: #1a3e6f;
-        font-family: 'Segoe UI', sans-serif;
+    h1 {
+        color: #4a1d8c;
+        font-weight: 700;
+        border-right: 6px solid #20c997;
+        padding-right: 15px;
     }
 
-    /* تنسيق الأزرار */
+    h2, h3 {
+        color: #2d4059;
+        font-weight: 600;
+    }
+
     .stButton > button {
-        background-color: #1a3e6f;
+        background: linear-gradient(135deg, #6f42c1 0%, #8b5cf6 100%);
         color: white;
-        border-radius: 8px;
+        border-radius: 30px;
         border: none;
-        padding: 8px 16px;
-        font-weight: bold;
-        transition: all 0.3s;
+        padding: 10px 20px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 10px rgba(111, 66, 193, 0.2);
         width: 100%;
+        border: 1px solid rgba(255,255,255,0.2);
     }
+
     .stButton > button:hover {
-        background-color: #0f2b4f;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        background: linear-gradient(135deg, #5a2b9c 0%, #7c3aed 100%);
+        box-shadow: 0 8px 15px rgba(111, 66, 193, 0.3);
         transform: translateY(-2px);
     }
 
-    /* تنسيق مربعات القياسات */
     .metric-card {
-        background-color: white;
-        border-radius: 12px;
-        padding: 16px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-        border: 1px solid #e0e0e0;
+        background: white;
+        border-radius: 20px;
+        padding: 20px 10px;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+        border: 1px solid rgba(111, 66, 193, 0.1);
         text-align: center;
+        transition: transform 0.2s;
     }
 
-    /* تنسيق الجداول */
+    .metric-card:hover {
+        transform: scale(1.02);
+        border-color: #20c997;
+    }
+
     .dataframe {
-        border-radius: 8px;
+        border-radius: 15px;
         overflow: hidden;
-        border: 1px solid #e0e0e0;
+        border: none;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.03);
     }
 
-    /* تنسيق التنبيهات */
     .stAlert {
-        border-radius: 8px;
-        border-left-width: 6px;
+        border-radius: 15px;
+        border-left-width: 8px;
+        font-weight: 500;
     }
 
-    /* الشريط الجانبي */
-    .css-1d391kg {
-        background-color: #1a3e6f;
+    div[data-baseweb="notification"] {
+        background-color: #fff8e5;
+        border-left-color: #20c997;
     }
-    .css-1d391kg .stSelectbox label, .css-1d391kg .stMarkdown {
+
+    .css-1d391kg {
+        background: linear-gradient(180deg, #1e1a2e 0%, #2d1b4e 100%);
         color: white;
     }
 
-    /* تذييل الصفحة */
+    .css-1d391kg .stMarkdown, .css-1d391kg .stSelectbox label {
+        color: rgba(255,255,255,0.9);
+    }
+
+    .css-1d391kg .stSelectbox > div > div {
+        background-color: rgba(255,255,255,0.1);
+        border: 1px solid rgba(255,255,255,0.2);
+        color: white;
+        border-radius: 30px;
+    }
+
     .footer {
         text-align: center;
-        margin-top: 40px;
-        padding: 16px;
-        color: #6c757d;
-        border-top: 1px solid #e0e0e0;
+        margin-top: 50px;
+        padding: 20px;
+        background: white;
+        border-radius: 60px 60px 20px 20px;
+        color: #4a5568;
+        box-shadow: 0 -5px 20px rgba(0,0,0,0.02);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -166,14 +197,14 @@ def generate_sales_insight():
     top_percentage = (top_qty / total_quantity) * 100
 
     insight = f"""
-    <div style='background-color: #e8f0fe; padding: 16px; border-radius: 12px; border-right: 6px solid #1a3e6f;'>
-        <h3 style='color: #1a3e6f; margin-top: 0;'>📊 تحليل الأداء المالي</h3>
+    <div style='background-color: #e8f0fe; padding: 16px; border-radius: 12px; border-right: 6px solid #6f42c1;'>
+        <h3 style='color: #4a1d8c; margin-top: 0;'>📊 تحليل الأداء المالي</h3>
         <p style='font-size: 16px;'>
             💰 إجمالي الإيرادات: <strong>{total_revenue:,.2f} {CURRENCY}</strong><br>
             🛒 إجمالي القطع المباعة: <strong>{int(total_quantity)}</strong> قطعة<br>
             🏆 المنتج الأكثر مبيعاً: <strong>{top_product}</strong> ({int(top_qty)} قطعة، {top_percentage:.1f}% من المبيعات)
         </p>
-        <p style='font-size: 14px; color: #2ecc71; margin-bottom: 0;'>
+        <p style='font-size: 14px; color: #20c997; margin-bottom: 0;'>
             💡 نصيحة استراتيجية: حافظ على مخزون <strong>{top_product}</strong> وضعه في واجهة المتجر.
         </p>
     </div>
@@ -181,12 +212,12 @@ def generate_sales_insight():
     return insight
 
 # =========================
-# الشريط الجانبي
+# الشريط الجانبي (مرتب)
 # =========================
 with st.sidebar:
-    st.image("https://img.icons8.com/fluency/96/shopping-cart.png", width=80)
-    st.markdown("## 🎭 نظام المبيعات X")
-    st.markdown("### للمسرحية المحاسبية")
+    st.image("https://img.icons8.com/fluency/96/theater-mask.png", width=80)
+    st.markdown("## 🎭 المسرحية المحاسبية")
+    st.markdown("### نظام المبيعات X")
     st.markdown("---")
     st.markdown("**🎓 جامعة القرآن الكريم**")
     st.markdown("**📍 غيل باوزير - حضرموت**")
@@ -199,9 +230,9 @@ with st.sidebar:
     st.markdown("🎯 *تحويل المحاسبة إلى تجربة حية*")
 
 # =========================
-# المحتوى الرئيسي
+# العنوان الرئيسي
 # =========================
-st.title("🎭 نظام المبيعات X | المسرحية المحاسبية")
+st.title("🎭 المسرحية المحاسبية | نظام المبيعات X")
 st.caption("نظام ذكي لمحاكاة عمليات البيع والشراء - مصمم خصيصًا للورشة التفاعلية")
 
 # =========================
@@ -218,13 +249,13 @@ if menu == "🏠 لوحة التحكم":
 
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.markdown("<div class='metric-card'><h3>📦</h3><h2>{}</h2><p>المنتجات</p></div>".format(len(products)), unsafe_allow_html=True)
+        st.markdown(f"<div class='metric-card'><h3>📦</h3><h2>{len(products)}</h2><p>المنتجات</p></div>", unsafe_allow_html=True)
     with col2:
-        st.markdown("<div class='metric-card'><h3>🧾</h3><h2>{}</h2><p>العمليات</p></div>".format(len(sales)), unsafe_allow_html=True)
+        st.markdown(f"<div class='metric-card'><h3>🧾</h3><h2>{len(sales)}</h2><p>العمليات</p></div>", unsafe_allow_html=True)
     with col3:
-        st.markdown("<div class='metric-card'><h3>💰</h3><h2>{:,.0f}</h2><p>الإيرادات ({})</p></div>".format(total_sales, CURRENCY), unsafe_allow_html=True)
+        st.markdown(f"<div class='metric-card'><h3>💰</h3><h2>{total_sales:,.0f}</h2><p>الإيرادات ({CURRENCY})</p></div>", unsafe_allow_html=True)
     with col4:
-        st.markdown("<div class='metric-card'><h3>🛒</h3><h2>{}</h2><p>القطع المباعة</p></div>".format(total_items), unsafe_allow_html=True)
+        st.markdown(f"<div class='metric-card'><h3>🛒</h3><h2>{total_items}</h2><p>القطع المباعة</p></div>", unsafe_allow_html=True)
 
     st.markdown("---")
 
@@ -248,7 +279,7 @@ if menu == "🏠 لوحة التحكم":
         st.markdown("### 📈 توزيع المبيعات")
         if not sales.empty:
             fig, ax = plt.subplots(figsize=(8, 4))
-            sales.groupby("product")["qty"].sum().plot(kind="bar", ax=ax, color="#1a3e6f")
+            sales.groupby("product")["qty"].sum().plot(kind="bar", ax=ax, color="#6f42c1")
             ax.set_facecolor("#f8f9fa")
             plt.xticks(rotation=45)
             st.pyplot(fig)
@@ -359,7 +390,7 @@ elif menu == "📊 التقارير":
     st.metric("💰 إجمالي الإيرادات", f"{total:,.2f} {CURRENCY}")
 
 # =========================
-# تذييل الصفحة
+# تذييل الصفحة (مرتب)
 # =========================
 st.markdown("---")
 st.markdown("<div class='footer'>🎭 نظام المبيعات X | المسرحية المحاسبية - غيل باوزير © 2026<br>👨‍💻 تصميم وتطوير: سالم فهمي التربيمي</div>", unsafe_allow_html=True)

@@ -224,7 +224,7 @@ with st.sidebar:
     st.markdown("---")
     menu = st.selectbox("📋 القائمة الرئيسية", ["🏠 لوحة التحكم", "📦 إدارة المنتجات", "🛒 الكاشير", "📊 التقارير"])
     st.markdown("---")
-    st.markdown("**👨‍💻 بواسطة: سالم فهمي التربيمي**")
+    st.markdown("**👨‍💻 بواسطة: سالم التريمي**")
     st.markdown("*طالب محاسبة - مبتكر*")
     st.markdown("---")
     st.markdown("🎯 *تحويل المحاسبة إلى تجربة حية*")
@@ -393,6 +393,6 @@ elif menu == "📊 التقارير":
 # تذييل الصفحة (مرتب)
 # =========================
 st.markdown("---")
-st.markdown("<div class='footer'>🎭 نظام المبيعات X | المسرحية المحاسبية - غيل باوزير © 2026<br>👨‍💻 تصميم وتطوير: سالم فهمي التربيمي</div>", unsafe_allow_html=True)
+st.markdown("<div class='footer'>🎭 نظام المبيعات X | المسرحية المحاسبية - غيل باوزير © 2026<br>👨‍💻 تصميم وتطوير: سالم التريمي</div>", unsafe_allow_html=True)
 
 conn.close()

@@ -187,25 +187,63 @@ def get_top_selling_products(limit=5):
 
 def generate_sales_insight():
     sales_df = pd.read_sql("SELECT * FROM sales", conn)
+    products_df = pd.read_sql("SELECT * FROM products", conn)
+    
     if sales_df.empty:
         return "🎭 لا توجد مبيعات مسجلة بعد. ابدأ ببيع منتج لتظهر التحليلات الذكية!"
 
     total_revenue = sales_df["total"].sum()
     total_quantity = sales_df["qty"].sum()
-    top_product = sales_df.groupby("product")["qty"].sum().idxmax()
-    top_qty = sales_df.groupby("product")["qty"].sum().max()
-    top_percentage = (top_qty / total_quantity) * 100
+    
+    # تجميع المبيعات لكل منتج
+    product_sales = sales_df.groupby("product").agg(
+        total_qty=("qty", "sum"),
+        total_revenue=("total", "sum")
+    ).reset_index()
+
+    # 1. الأكثر مبيعاً
+    top_3 = product_sales.sort_values("total_qty", ascending=False).head(3)
+    top_products_str = ""
+    for _, row in top_3.iterrows():
+        top_products_str += f"<li><strong>{row['product']}</strong> ({int(row['total_qty'])} قطعة، {row['total_revenue']:,.2f} {CURRENCY})</li>"
+    
+    # 2. المنتجات الراكدة
+    sold_product_names = product_sales["product"].tolist()
+    all_product_names = products_df["name"].tolist()
+    unsold_products = [p for p in all_product_names if p not in sold_product_names]
+    
+    low_sales_warning = ""
+    if unsold_products:
+        low_sales_warning = f"""
+        <p style='font-size: 16px;'>
+            🚫 <strong>منتجات لم تبع بعد:</strong> {', '.join(unsold_products)}<br>
+            <span style='color: #e67e22;'>عدد المنتجات الراكدة: {len(unsold_products)}</span>
+        </p>
+        """
+    
+    # 3. النصيحة الاستراتيجية
+    advice = ""
+    if unsold_products:
+        advice = "💡 نصيحة: فكر في عمل عروض ترويجية للمنتجات الراكدة لتحريك مخزونها."
+    else:
+        advice = "💡 أداء ممتاز! جميع منتجاتك تحقق مبيعات. حافظ على هذا الزخم."
 
     insight = f"""
     <div style='background-color: #e8f0fe; padding: 16px; border-radius: 12px; border-right: 6px solid #6f42c1;'>
         <h3 style='color: #4a1d8c; margin-top: 0;'>📊 تحليل الأداء المالي</h3>
         <p style='font-size: 16px;'>
             💰 إجمالي الإيرادات: <strong>{total_revenue:,.2f} {CURRENCY}</strong><br>
-            🛒 إجمالي القطع المباعة: <strong>{int(total_quantity)}</strong> قطعة<br>
-            🏆 المنتج الأكثر مبيعاً: <strong>{top_product}</strong> ({int(top_qty)} قطعة، {top_percentage:.1f}% من المبيعات)
+            🛒 إجمالي القطع المباعة: <strong>{int(total_quantity)}</strong> قطعة
         </p>
-        <p style='font-size: 14px; color: #20c997; margin-bottom: 0;'>
-            💡 نصيحة استراتيجية: حافظ على مخزون <strong>{top_product}</strong> وضعه في واجهة المتجر.
+        <hr style='border-color: #bdc3c7;'>
+        <h4 style='color: #27ae60;'>🏆 أفضل 3 منتجات مبيعاً</h4>
+        <ul style='font-size: 16px;'>
+            {top_products_str}
+        </ul>
+        {low_sales_warning}
+        <hr style='border-color: #bdc3c7;'>
+        <p style='font-size: 16px; color: #2c3e50;'>
+            {advice}
         </p>
     </div>
     """

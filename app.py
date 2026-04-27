@@ -230,6 +230,14 @@ def record_movement(product, qty, movement_type, notes=""):
                 (product, qty, movement_type, now, notes))
     conn.commit()
 
+def reset_all_data():
+    """إعادة ضبط كاملة للبيانات"""
+    cur.execute("DELETE FROM products")
+    cur.execute("DELETE FROM sales")
+    cur.execute("DELETE FROM inventory_movements")
+    conn.commit()
+    st.session_state.cart = []
+
 def generate_sales_insight():
     sales_df = pd.read_sql("SELECT * FROM sales", conn)
     products_df = pd.read_sql("SELECT * FROM products", conn)
@@ -289,6 +297,24 @@ with st.sidebar:
     st.markdown("**📍 غيل باوزير - حضرموت**")
     st.markdown("---")
     menu = st.selectbox("📋 القائمة الرئيسية", ["🏠 لوحة التحكم", "📦 إدارة المنتجات", "🛒 الكاشير", "📊 التقارير", "📋 حركة المخزون"])
+    st.markdown("---")
+    
+    # ✅ زر إعادة الضبط (تمت إضافته هنا)
+    st.markdown("### ⚙️ أدوات النظام")
+    if st.button("🔄 إعادة ضبط النظام", use_container_width=True):
+        # تأكيد الحذف عبر حالة في الجلسة
+        if "confirm_reset" not in st.session_state:
+            st.session_state.confirm_reset = True
+            st.warning("⚠️ سيتم حذف جميع المنتجات والمبيعات وسجل الحركة. اضغط مرة أخرى للتأكيد.")
+        else:
+            reset_all_data()
+            st.session_state.confirm_reset = False
+            st.success("✅ تم إعادة ضبط النظام بنجاح! كل شيء أصبح نظيفًا.")
+            st.rerun()
+    # إخفاء التأكيد إذا انتقل المستخدم لقائمة أخرى
+    if "confirm_reset" in st.session_state and st.session_state.confirm_reset:
+        st.caption("اضغط الزر مرة أخرى لتأكيد الحذف الكامل.")
+    
     st.markdown("---")
     st.markdown("**👨‍💻 بواسطة: سالم التريمي**")
     st.markdown("*طالب محاسبة - مبتكر*")

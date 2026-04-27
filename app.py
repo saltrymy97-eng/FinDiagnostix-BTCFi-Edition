@@ -375,7 +375,29 @@ elif menu == "📦 إدارة المنتجات":
     st.markdown("---")
     st.markdown("### 📋 جميع المنتجات")
     products_df = pd.read_sql("SELECT id, name, price, stock FROM products", conn)
-    st.dataframe(products_df, use_container_width=True)
+    
+    if not products_df.empty:
+        for idx, row in products_df.iterrows():
+            col_name, col_price, col_stock, col_action = st.columns([2, 1, 1, 1])
+            with col_name:
+                st.markdown(f"**{row['name']}**")
+            with col_price:
+                st.markdown(f"{row['price']:,.0f} {CURRENCY}")
+            with col_stock:
+                st.markdown(f"{row['stock']} قطعة")
+            with col_action:
+                # زر الحذف مع تأكيد
+                if st.button(f"🗑️ حذف", key=f"del_{row['id']}"):
+                    with st.spinner("جارٍ الحذف..."):
+                        cur.execute("DELETE FROM products WHERE id=?", (row['id'],))
+                        # حذف حركات المخزون المرتبطة به
+                        cur.execute("DELETE FROM inventory_movements WHERE product=?", (row['name'],))
+                        conn.commit()
+                        st.warning(f"🗑️ تم حذف المنتج: {row['name']}")
+                        st.rerun()
+            st.markdown("---")
+    else:
+        st.info("لا توجد منتجات حالياً")
 
     st.markdown("---")
     st.markdown("### 🔍 تفاصيل المخزون الحالي")

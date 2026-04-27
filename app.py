@@ -2,6 +2,7 @@ import streamlit as st
 import sqlite3
 import pandas as pd
 import matplotlib.pyplot as plt
+from datetime import datetime
 
 # =========================
 # الإعدادات العامة
@@ -149,6 +150,16 @@ def init_db():
         total REAL
     )
     """)
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS inventory_movements (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        product TEXT,
+        qty INTEGER,
+        movement_type TEXT,
+        date_time TEXT,
+        notes TEXT
+    )
+    """)
     conn.commit()
     conn.close()
 
@@ -185,6 +196,13 @@ def get_top_selling_products(limit=5):
     df = pd.read_sql(query, conn)
     return df
 
+def record_movement(product, qty, movement_type, notes=""):
+    """تسجيل حركة مخزون (إضافة أو سحب)"""
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cur.execute("INSERT INTO inventory_movements VALUES (NULL, ?, ?, ?, ?, ?)",
+                (product, qty, movement_type, now, notes))
+    conn.commit()
+
 def generate_sales_insight():
     sales_df = pd.read_sql("SELECT * FROM sales", conn)
     products_df = pd.read_sql("SELECT * FROM products", conn)
@@ -201,7 +219,6 @@ def generate_sales_insight():
         total_revenue=("total", "sum")
     ).reset_index()
 
-    # أفضل 3 منتجات مبيعاً
     top_3 = product_sales.sort_values("total_qty", ascending=False).head(3)
 
     st.markdown("---")
@@ -221,7 +238,6 @@ def generate_sales_insight():
         rev = row['total_revenue']
         st.markdown(f"{i+1}. **{row['product']}** ({qty} قطعة، {rev:,.2f} {CURRENCY})")
 
-    # المنتجات الراكدة
     sold_product_names = product_sales["product"].tolist()
     all_product_names = products_df["name"].tolist()
     unsold_products = [p for p in all_product_names if p not in sold_product_names]
@@ -245,7 +261,7 @@ with st.sidebar:
     st.markdown("**🎓 جامعة القرآن الكريم**")
     st.markdown("**📍 غيل باوزير - حضرموت**")
     st.markdown("---")
-    menu = st.selectbox("📋 القائمة الرئيسية", ["🏠 لوحة التحكم", "📦 إدارة المنتجات", "🛒 الكاشير", "📊 التقارير"])
+    menu = st.selectbox("📋 القائمة الرئيسية", ["🏠 لوحة التحكم", "📦 إدارة المنتجات", "🛒 الكاشير", "📊 التقارير", "📋 حركة المخزون"])
     st.markdown("---")
     st.markdown("**👨‍💻 بواسطة: سالم التريمي**")
     st.markdown("*طالب محاسبة - مبتكر*")
@@ -280,7 +296,7 @@ if menu == "🏠 لوحة التحكم":
     with col4:
         st.markdown(f"<div class='metric-card'><h3>🛒</h3><h2>{total_items}</h2><p>القطع المباعة</p></div>", unsafe_allow_html=True)
 
-    # تنبيهات المخزون
+    st.markdown("---")
     low_stock = get_low_stock_products()
     if not low_stock.empty:
         warning_msg = "⚠️ **تنبيه مخزون:** " + " | ".join([f"{row['name']} ({row['stock']} قطعة)" for _, row in low_stock.iterrows()])
@@ -288,10 +304,8 @@ if menu == "🏠 لوحة التحكم":
     else:
         st.success(f"✅ جميع المنتجات بمخزون آمن (أعلى من {LOW_STOCK_THRESHOLD})")
 
-    # التحليل الذكي
     generate_sales_insight()
 
-    # توزيع المبيعات وآخر العمليات
     colA, colB = st.columns(2)
     with colA:
         st.markdown("### 📈 توزيع المبيعات")
@@ -325,13 +339,28 @@ elif menu == "📦 إدارة المنتجات":
                 try:
                     cur.execute("INSERT INTO products VALUES (NULL,?,?,?)", (name, price, stock))
                     conn.commit()
+                    # تسجيل حركة الإضافة الأولية
+                    record_movement(name, stock, "إضافة", "مخزون أولي")
                     st.success(f"✅ تمت إضافة {name} بنجاح")
                     st.rerun()
                 except:
                     st.error("❌ المنتج موجود مسبقاً")
 
     st.markdown("---")
-    st.dataframe(pd.read_sql("SELECT * FROM products", conn), use_container_width=True)
+    st.markdown("### 📋 جميع المنتجات")
+    products_df = pd.read_sql("SELECT id, name, price, stock FROM products", conn)
+    st.dataframe(products_df, use_container_width=True)
+
+    # عرض حركة المخزون لكل منتج (سريع)
+    st.markdown("---")
+    st.markdown("### 🔍 تفاصيل المخزون الحالي")
+    for idx, row in products_df.iterrows():
+        with st.expander(f"{row['name']} (المتاح: {row['stock']})"):
+            mov = pd.read_sql("SELECT * FROM inventory_movements WHERE product=? ORDER BY date_time DESC", conn, params=(row["name"],))
+            if not mov.empty:
+                st.dataframe(mov[["qty", "movement_type", "date_time", "notes"]], use_container_width=True)
+            else:
+                st.text("لا توجد حركات مسجلة.")
 
 # =========================
 # الكاشير
@@ -341,7 +370,6 @@ elif menu == "🛒 الكاشير":
 
     products = pd.read_sql("SELECT * FROM products", conn)
 
-    # اقتراحات ذكية
     top_products = get_top_selling_products()
     if not top_products.empty:
         st.markdown("### 🔥 الأكثر مبيعاً (إضافة سريعة)")
@@ -365,9 +393,10 @@ elif menu == "🛒 الكاشير":
         filtered = products[products["name"].str.contains(search, case=False)] if search else products
         if not filtered.empty:
             product = st.selectbox("📌 اختر المنتج", filtered["name"])
+            row = products[products["name"] == product].iloc[0]
+            st.caption(f"📊 المخزون المتاح: {row['stock']} قطعة")
             qty = st.number_input("🔢 الكمية", min_value=1, step=1)
             if st.button("🛒 إضافة إلى السلة", use_container_width=True):
-                row = products[products["name"] == product].iloc[0]
                 if row["stock"] >= qty:
                     st.session_state.cart.append({
                         "name": product,
@@ -390,6 +419,8 @@ elif menu == "🛒 الكاشير":
                 for item in st.session_state.cart:
                     cur.execute("UPDATE products SET stock = stock - ? WHERE name=?", (item["qty"], item["name"]))
                     cur.execute("INSERT INTO sales VALUES (NULL,?,?,?)", (item["name"], item["qty"], item["total"]))
+                    # تسجيل حركة خروج
+                    record_movement(item["name"], item["qty"], "بيع", "عملية بيع")
                 conn.commit()
                 st.session_state.cart = []
                 st.success("🎉 تمت عملية البيع بنجاح!")
@@ -406,6 +437,24 @@ elif menu == "📊 التقارير":
     st.dataframe(sales, use_container_width=True)
     total = sales["total"].sum() if not sales.empty else 0
     st.metric("💰 إجمالي الإيرادات", f"{total:,.2f} {CURRENCY}")
+
+# =========================
+# حركة المخزون (جديد)
+# =========================
+elif menu == "📋 حركة المخزون":
+    st.markdown("## 📋 سجل حركة المخزون")
+    
+    mov_df = pd.read_sql("SELECT * FROM inventory_movements ORDER BY date_time DESC", conn)
+    if not mov_df.empty:
+        st.dataframe(mov_df, use_container_width=True)
+        
+        # تصفية بسيطة
+        product_filter = st.selectbox("🔍 تصفية حسب المنتج", ["الكل"] + list(mov_df["product"].unique()))
+        if product_filter != "الكل":
+            filtered_mov = mov_df[mov_df["product"] == product_filter]
+            st.dataframe(filtered_mov, use_container_width=True)
+    else:
+        st.info("🎭 لا توجد حركات مخزون مسجلة بعد. أضف منتجات أو قم بعمليات بيع.")
 
 # =========================
 # تذييل الصفحة (مرتب)

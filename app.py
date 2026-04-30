@@ -3,11 +3,10 @@ import sqlite3
 import pandas as pd
 import matplotlib.pyplot as plt
 from datetime import datetime
-import ollama
-import io
-import zipfile
 
-# ==================== الإعدادات الأساسية ====================
+# =========================
+# الإعدادات العامة
+# =========================
 DB_NAME = "pos.db"
 CURRENCY = "ريال يمني (﷼)"
 LOW_STOCK_THRESHOLD = 5
@@ -19,60 +18,116 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ==================== التنسيقات CSS ====================
+# =========================
+# تنسيقات CSS احترافية وجذابة
+# =========================
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
-    html, body, [class*="css"] { font-family: 'Cairo', sans-serif; }
-    .main { background-color: #f4f7f9; }
-    h1 { color: #4a1d8c; font-weight: 700; border-right: 6px solid #20c997; padding-right: 15px; }
-    h2, h3 { color: #2d4059; font-weight: 600; }
+
+    html, body, [class*="css"] {
+        font-family: 'Cairo', sans-serif;
+    }
+
+    .main {
+        background-color: #f4f7f9;
+    }
+
+    h1 {
+        color: #4a1d8c;
+        font-weight: 700;
+        border-right: 6px solid #20c997;
+        padding-right: 15px;
+    }
+
+    h2, h3 {
+        color: #2d4059;
+        font-weight: 600;
+    }
+
     .stButton > button {
         background: linear-gradient(135deg, #6f42c1 0%, #8b5cf6 100%);
-        color: white; border-radius: 30px; border: none; padding: 10px 20px;
-        font-weight: 600; transition: all 0.3s ease;
-        box-shadow: 0 4px 10px rgba(111, 66, 193, 0.2); width: 100%;
+        color: white;
+        border-radius: 30px;
+        border: none;
+        padding: 10px 20px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 10px rgba(111, 66, 193, 0.2);
+        width: 100%;
         border: 1px solid rgba(255,255,255,0.2);
     }
+
     .stButton > button:hover {
         background: linear-gradient(135deg, #5a2b9c 0%, #7c3aed 100%);
-        box-shadow: 0 8px 15px rgba(111, 66, 193, 0.3); transform: translateY(-2px);
+        box-shadow: 0 8px 15px rgba(111, 66, 193, 0.3);
+        transform: translateY(-2px);
     }
+
     .metric-card {
-        background: white; border-radius: 20px; padding: 20px 10px;
+        background: white;
+        border-radius: 20px;
+        padding: 20px 10px;
         box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
-        border: 1px solid rgba(111, 66, 193, 0.1); text-align: center; transition: transform 0.2s;
+        border: 1px solid rgba(111, 66, 193, 0.1);
+        text-align: center;
+        transition: transform 0.2s;
     }
-    .metric-card:hover { transform: scale(1.02); border-color: #20c997; }
-    .dataframe { border-radius: 15px; overflow: hidden; border: none; box-shadow: 0 5px 15px rgba(0,0,0,0.03); }
-    .stAlert { border-radius: 15px; border-left-width: 8px; font-weight: 500; }
-    div[data-baseweb="notification"] { background-color: #fff8e5; border-left-color: #20c997; }
-    .css-1d391kg { background: linear-gradient(180deg, #1e1a2e 0%, #2d1b4e 100%); color: white; }
-    .css-1d391kg .stMarkdown, .css-1d391kg .stSelectbox label { color: rgba(255,255,255,0.9); }
+
+    .metric-card:hover {
+        transform: scale(1.02);
+        border-color: #20c997;
+    }
+
+    .dataframe {
+        border-radius: 15px;
+        overflow: hidden;
+        border: none;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.03);
+    }
+
+    .stAlert {
+        border-radius: 15px;
+        border-left-width: 8px;
+        font-weight: 500;
+    }
+
+    div[data-baseweb="notification"] {
+        background-color: #fff8e5;
+        border-left-color: #20c997;
+    }
+
+    .css-1d391kg {
+        background: linear-gradient(180deg, #1e1a2e 0%, #2d1b4e 100%);
+        color: white;
+    }
+
+    .css-1d391kg .stMarkdown, .css-1d391kg .stSelectbox label {
+        color: rgba(255,255,255,0.9);
+    }
+
     .css-1d391kg .stSelectbox > div > div {
-        background-color: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
-        color: white; border-radius: 30px;
+        background-color: rgba(255,255,255,0.1);
+        border: 1px solid rgba(255,255,255,0.2);
+        color: white;
+        border-radius: 30px;
     }
+
     .footer {
-        text-align: center; margin-top: 50px; padding: 20px; background: white;
-        border-radius: 60px 60px 20px 20px; color: #4a5568; box-shadow: 0 -5px 20px rgba(0,0,0,0.02);
+        text-align: center;
+        margin-top: 50px;
+        padding: 20px;
+        background: white;
+        border-radius: 60px 60px 20px 20px;
+        color: #4a5568;
+        box-shadow: 0 -5px 20px rgba(0,0,0,0.02);
     }
-    .banner {
-        background: linear-gradient(135deg, #2d1b4e 0%, #4a1d8c 100%);
-        padding: 25px; border-radius: 25px; color: white;
-        display: flex; align-items: center; gap: 20px; margin-bottom: 20px;
-        box-shadow: 0 10px 25px rgba(74,29,140,0.4);
-    }
-    .chat-message {
-        background: white; border-radius: 15px; padding: 15px; margin: 10px 0;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    }
-    .user-msg { border-right: 5px solid #6f42c1; }
-    .assistant-msg { border-right: 5px solid #20c997; }
 </style>
 """, unsafe_allow_html=True)
 
-# ==================== دوال قاعدة البيانات ====================
+# =========================
+# قاعدة البيانات مع التحقق التلقائي من وجود جدول الحركة
+# =========================
 def get_conn():
     return sqlite3.connect(DB_NAME, check_same_thread=False)
 
@@ -95,6 +150,7 @@ def init_db():
         total REAL
     )
     """)
+    # إنشاء جدول حركة المخزون إن لم يوجد
     cur.execute("""
     CREATE TABLE IF NOT EXISTS inventory_movements (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -105,19 +161,11 @@ def init_db():
         notes TEXT
     )
     """)
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS refunds (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        product TEXT,
-        qty INTEGER,
-        refund_amount REAL,
-        date_time TEXT
-    )
-    """)
     conn.commit()
     conn.close()
 
 def check_inventory_table():
+    """يتأكد أن الجدول موجود، وإذا لم يكن موجودًا ينشئه ويبلغ المستخدم"""
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='inventory_movements'")
@@ -134,10 +182,11 @@ def check_inventory_table():
         """)
         conn.commit()
         conn.close()
-        return True
+        return True  # يعني كان ناقصًا وتم إنشاؤه الآن
     conn.close()
     return False
 
+# تشغيل التحقق أول مرة
 if check_inventory_table():
     st.toast("🛠️ تم تجهيز جدول حركة المخزون تلقائيًا", icon="✅")
 
@@ -145,16 +194,15 @@ init_db()
 conn = get_conn()
 cur = conn.cursor()
 
-# ==================== تهيئة الجلسة ====================
+# =========================
+# السلة
+# =========================
 if "cart" not in st.session_state:
     st.session_state.cart = []
-if "chat_messages" not in st.session_state:
-    st.session_state.chat_messages = []
-if "sale_just_completed" not in st.session_state:
-    st.session_state.sale_just_completed = False
-    st.session_state.expert_tip = ""
 
-# ==================== الدوال المساعدة ====================
+# =========================
+# دوال التحسينات الذكية
+# =========================
 def get_low_stock_products():
     query = f"""
     SELECT name, stock FROM products
@@ -176,19 +224,19 @@ def get_top_selling_products(limit=5):
     return df
 
 def record_movement(product, qty, movement_type, notes=""):
+    """تسجيل حركة مخزون (إضافة أو سحب)"""
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     cur.execute("INSERT INTO inventory_movements VALUES (NULL, ?, ?, ?, ?, ?)",
                 (product, qty, movement_type, now, notes))
     conn.commit()
 
 def reset_all_data():
+    """إعادة ضبط كاملة للبيانات"""
     cur.execute("DELETE FROM products")
     cur.execute("DELETE FROM sales")
     cur.execute("DELETE FROM inventory_movements")
-    cur.execute("DELETE FROM refunds")
     conn.commit()
     st.session_state.cart = []
-    st.session_state.chat_messages = []
 
 def generate_sales_insight():
     sales_df = pd.read_sql("SELECT * FROM sales", conn)
@@ -237,28 +285,9 @@ def generate_sales_insight():
         st.markdown("---")
         st.success("💡 أداء ممتاز! جميع منتجاتك تحقق مبيعات. حافظ على هذا الزخم.")
 
-def call_llama(prompt, system_prompt=""):
-    """استدعاء نموذج Llama 3.1 عبر Ollama مع معالجة الأخطاء"""
-    messages = []
-    if system_prompt:
-        messages.append({"role": "system", "content": system_prompt})
-    messages.append({"role": "user", "content": prompt})
-    try:
-        response = ollama.chat(model='llama3.1:8b', messages=messages)
-        return response['message']['content']
-    except Exception as e:
-        return f"⚠️ خطأ في الاتصال بالذكاء الاصطناعي: {str(e)}"
-
-def get_sales_summary():
-    """ملخص المبيعات الحالي لتزويد الخبير الذكي"""
-    sales_df = pd.read_sql("SELECT * FROM sales", conn)
-    if sales_df.empty:
-        return "لا توجد مبيعات بعد."
-    total_revenue = sales_df['total'].sum()
-    top_product = sales_df.groupby('product')['qty'].sum().idxmax() if not sales_df.empty else "لا يوجد"
-    return f"إجمالي الإيرادات: {total_revenue:,.2f} {CURRENCY}. المنتج الأكثر مبيعاً: {top_product}."
-
-# ==================== القائمة الجانبية ====================
+# =========================
+# الشريط الجانبي (مرتب)
+# =========================
 with st.sidebar:
     st.image("https://img.icons8.com/fluency/96/theater-mask.png", width=80)
     st.markdown("## 🎭 المسرحية المحاسبية")
@@ -267,19 +296,13 @@ with st.sidebar:
     st.markdown("**🎓 جامعة القرآن الكريم**")
     st.markdown("**📍 غيل باوزير - حضرموت**")
     st.markdown("---")
-    menu = st.selectbox("📋 القائمة الرئيسية", [
-        "🏠 لوحة التحكم",
-        "📦 إدارة المنتجات",
-        "🛒 الكاشير",
-        "📊 التقارير",
-        "📋 حركة المخزون",
-        "🔄 استرجاع البضاعة",
-        "🧠 الخبير الذكي (شات)"
-    ])
+    menu = st.selectbox("📋 القائمة الرئيسية", ["🏠 لوحة التحكم", "📦 إدارة المنتجات", "🛒 الكاشير", "📊 التقارير", "📋 حركة المخزون"])
     st.markdown("---")
     
+    # ✅ زر إعادة الضبط (تمت إضافته هنا)
     st.markdown("### ⚙️ أدوات النظام")
     if st.button("🔄 إعادة ضبط النظام", use_container_width=True):
+        # تأكيد الحذف عبر حالة في الجلسة
         if "confirm_reset" not in st.session_state:
             st.session_state.confirm_reset = True
             st.warning("⚠️ سيتم حذف جميع المنتجات والمبيعات وسجل الحركة. اضغط مرة أخرى للتأكيد.")
@@ -288,54 +311,9 @@ with st.sidebar:
             st.session_state.confirm_reset = False
             st.success("✅ تم إعادة ضبط النظام بنجاح! كل شيء أصبح نظيفًا.")
             st.rerun()
+    # إخفاء التأكيد إذا انتقل المستخدم لقائمة أخرى
     if "confirm_reset" in st.session_state and st.session_state.confirm_reset:
         st.caption("اضغط الزر مرة أخرى لتأكيد الحذف الكامل.")
-    
-    st.markdown("---")
-    # زر تحميل النسخة المحلية
-    if st.button("📥 تحميل نسخة للعمل بدون إنترنت", use_container_width=True):
-        try:
-            # قراءة السكربت الحالي
-            with open(__file__, 'r', encoding='utf-8') as f:
-                script_content = f.read()
-            
-            # محتويات requirements.txt
-            reqs = "streamlit\npandas\nmatplotlib\nollama\n"
-            
-            # محتويات run_local.bat
-            bat = "@echo off\npip install streamlit pandas matplotlib ollama\nstreamlit run app.py\npause\n"
-            
-            # محتويات README.txt
-            readme = """نظام المبيعات X – المسرحية المحاسبية
-            إعداد: سالم التريمي | جامعة القرآن الكريم – غيل باوزير
-
-            للتشغيل بدون إنترنت:
-            1. تأكد من تثبيت Python 3.9+
-            2. شغّل ملف run_local.bat (في ويندوز) أو نفّذ الأوامر يدويًا:
-               pip install streamlit pandas matplotlib ollama
-               streamlit run app.py
-            3. ستحتاج إلى تشغيل خدمة Ollama محليًا مع نموذج llama3.1:8b
-            4. افتح المتصفح على http://localhost:8501
-            """
-            
-            # إنشاء ZIP في الذاكرة
-            zip_buffer = io.BytesIO()
-            with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-                zf.writestr("app.py", script_content)
-                zf.writestr("requirements.txt", reqs)
-                zf.writestr("run_local.bat", bat)
-                zf.writestr("README.txt", readme)
-            zip_buffer.seek(0)
-            
-            st.download_button(
-                label="📥 انقر لتحميل الملف المضغوط",
-                data=zip_buffer,
-                file_name="pos_system_offline.zip",
-                mime="application/zip",
-                use_container_width=True
-            )
-        except Exception as e:
-            st.error(f"حدث خطأ أثناء إنشاء الملف: {e}")
     
     st.markdown("---")
     st.markdown("**👨‍💻 بواسطة: سالم التريمي**")
@@ -343,26 +321,21 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("🎯 *تحويل المحاسبة إلى تجربة حية*")
 
-# ==================== بانر لوحة التحكم ====================
-if menu == "🏠 لوحة التحكم":
-    st.markdown("""
-        <div class="banner">
-            <img src="https://img.icons8.com/fluency/96/theater-mask.png" width="80">
-            <div>
-                <h1 style="color:white; margin:0;">🎭 المسرحية المحاسبية | نظام المبيعات X</h1>
-                <p style="color:#e0d7ff; font-size:1.2rem; margin:0;">أول نظام كاشير حضرمي بذكاء اصطناعي محلي</p>
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
-else:
-    st.title("🎭 المسرحية المحاسبية | نظام المبيعات X")
-    st.caption("نظام ذكي لمحاكاة عمليات البيع والشراء - مصمم خصيصًا للورشة التفاعلية")
+# =========================
+# العنوان الرئيسي
+# =========================
+st.title("🎭 المسرحية المحاسبية | نظام المبيعات X")
+st.caption("نظام ذكي لمحاكاة عمليات البيع والشراء - مصمم خصيصًا للورشة التفاعلية")
 
-# ==================== الصفحات ====================
+# =========================
+# لوحة التحكم
+# =========================
 if menu == "🏠 لوحة التحكم":
     st.markdown("## 📊 لوحة القيادة")
+
     products = pd.read_sql("SELECT * FROM products", conn)
     sales = pd.read_sql("SELECT * FROM sales", conn)
+
     total_sales = sales["total"].sum() if not sales.empty else 0
     total_items = sales["qty"].sum() if not sales.empty else 0
 
@@ -401,43 +374,12 @@ if menu == "🏠 لوحة التحكم":
         st.markdown("### 🧾 آخر 10 عمليات بيع")
         st.dataframe(sales.tail(10), use_container_width=True)
 
-    # أزرار التحليل الذكي
-    st.markdown("---")
-    st.subheader("🧠 أدوات الذكاء الاصطناعي")
-    col_ai1, col_ai2 = st.columns(2)
-
-    with col_ai1:
-        if st.button("🔍 اكتشف المنتجات الراكدة", use_container_width=True):
-            with st.spinner("جارٍ التحليل..."):
-                # جمع المنتجات التي لم تبع أبدًا
-                products_df = pd.read_sql("SELECT name FROM products", conn)
-                sales_df = pd.read_sql("SELECT DISTINCT product FROM sales", conn)
-                all_prods = set(products_df["name"].tolist())
-                sold_prods = set(sales_df["product"].tolist()) if not sales_df.empty else set()
-                unsold = list(all_prods - sold_prods)
-                if not unsold:
-                    st.success("🎉 جميع المنتجات تباع، لا توجد راكدة!")
-                else:
-                    prompt = f"المنتجات التالية لم تُبع أبداً: {', '.join(unsold)}. قدم خطة ترويجية من 3 نقاط لتحريك مبيعاتها. اكتب النقاط مباشرة."
-                    response = call_llama(prompt, "أنت خبير تسويق تجزئة. أعط إجابات قصيرة ومفيدة.")
-                    st.markdown("### 💡 خطة ترويجية مقترحة")
-                    st.info(response)
-
-    with col_ai2:
-        if st.button("📈 توقعات الطلب الذكية", use_container_width=True):
-            with st.spinner("جارٍ التوقع..."):
-                top_df = get_top_selling_products(5)
-                if top_df.empty:
-                    st.warning("لا توجد بيانات مبيعات كافية.")
-                else:
-                    products_list = "\n".join([f"- {row['product']}: بِيع {int(row['total_qty'])} قطعة" for _, row in top_df.iterrows()])
-                    prompt = f"بناءً على أفضل 5 منتجات مبيعاً:\n{products_list}\n\nتوقع أي منتج سينفد من المخزون أولاً، وما هي كمية إعادة الطلب المثلى له. كن دقيقاً ومختصراً."
-                    response = call_llama(prompt, "أنت محلل مخزون ذكي. قدم إجابة قصيرة.")
-                    st.markdown("### 🔮 توقعات الخبير")
-                    st.success(response)
-
+# =========================
+# المنتجات
+# =========================
 elif menu == "📦 إدارة المنتجات":
     st.markdown("## 📦 إدارة المنتجات")
+
     col1, col2 = st.columns([2, 1])
     with col1:
         name = st.text_input("📌 اسم المنتج")
@@ -470,9 +412,11 @@ elif menu == "📦 إدارة المنتجات":
             with col_stock:
                 st.markdown(f"{row['stock']} قطعة")
             with col_action:
+                # زر الحذف مع تأكيد
                 if st.button(f"🗑️ حذف", key=f"del_{row['id']}"):
                     with st.spinner("جارٍ الحذف..."):
                         cur.execute("DELETE FROM products WHERE id=?", (row['id'],))
+                        # حذف حركات المخزون المرتبطة به
                         cur.execute("DELETE FROM inventory_movements WHERE product=?", (row['name'],))
                         conn.commit()
                         st.warning(f"🗑️ تم حذف المنتج: {row['name']}")
@@ -491,16 +435,116 @@ elif menu == "📦 إدارة المنتجات":
             else:
                 st.text("لا توجد حركات مسجلة.")
 
+# =========================
+# الكاشير
+# =========================
 elif menu == "🛒 الكاشير":
     st.markdown("## 🛒 واجهة البيع")
 
-    # عرض نصيحة الخبير بعد إتمام بيع سابق
-    if st.session_state.sale_just_completed and st.session_state.expert_tip:
-        st.markdown("---")
-        st.markdown("### 🧠 نصيحة الخبير بعد البيع")
-        st.info(st.session_state.expert_tip)
-        st.session_state.sale_just_completed = False  # إعادة التعيين بعد العرض
-
     products = pd.read_sql("SELECT * FROM products", conn)
+
     top_products = get_top_selling_products()
-   
+    if not top_products.empty:
+        st.markdown("### 🔥 الأكثر مبيعاً (إضافة سريعة)")
+        cols = st.columns(len(top_products))
+        for idx, (_, row) in enumerate(top_products.iterrows()):
+            with cols[idx]:
+                if st.button(f"➕ {row['product']}\n({int(row['total_qty'])})", key=f"top_{idx}", use_container_width=True):
+                    prod_row = products[products["name"] == row["product"]].iloc[0]
+                    st.session_state.cart.append({
+                        "name": row["product"],
+                        "price": prod_row["price"],
+                        "qty": 1,
+                        "total": prod_row["price"]
+                    })
+                    st.success(f"✅ تمت إضافة {row['product']}")
+        st.markdown("---")
+
+    col1, col2 = st.columns([3, 2])
+    with col1:
+        search = st.text_input("🔍 ابحث عن منتج")
+        filtered = products[products["name"].str.contains(search, case=False)] if search else products
+        if not filtered.empty:
+            product = st.selectbox("📌 اختر المنتج", filtered["name"])
+            row = products[products["name"] == product].iloc[0]
+            st.caption(f"📊 المخزون المتاح: {row['stock']} قطعة")
+            qty = st.number_input("🔢 الكمية", min_value=1, step=1)
+            if st.button("🛒 إضافة إلى السلة", use_container_width=True):
+                if row["stock"] >= qty:
+                    st.session_state.cart.append({
+                        "name": product,
+                        "price": row["price"],
+                        "qty": qty,
+                        "total": row["price"] * qty
+                    })
+                    st.success(f"✅ تمت إضافة {qty} × {product}")
+                else:
+                    st.error(f"❌ المخزون غير كافٍ (متوفر: {row['stock']})")
+
+    with col2:
+        st.markdown("### 🧾 سلة المشتريات")
+        if st.session_state.cart:
+            df = pd.DataFrame(st.session_state.cart)
+            st.dataframe(df, use_container_width=True)
+            total = df["total"].sum()
+            st.metric("💰 الإجمالي", f"{total:,.2f} {CURRENCY}")
+            if st.button("✅ إتمام عملية البيع", use_container_width=True):
+                for item in st.session_state.cart:
+                    cur.execute("UPDATE products SET stock = stock - ? WHERE name=?", (item["qty"], item["name"]))
+                    cur.execute("INSERT INTO sales VALUES (NULL,?,?,?)", (item["name"], item["qty"], item["total"]))
+                    record_movement(item["name"], item["qty"], "بيع", "عملية بيع")
+                conn.commit()
+                st.session_state.cart = []
+                st.success("🎉 تمت عملية البيع بنجاح!")
+                st.rerun()
+        else:
+            st.info("السلة فارغة حالياً")
+
+# =========================
+# التقارير
+# =========================
+elif menu == "📊 التقارير":
+    st.markdown("## 📊 تقارير المبيعات")
+    sales = pd.read_sql("SELECT * FROM sales", conn)
+    st.dataframe(sales, use_container_width=True)
+    total = sales["total"].sum() if not sales.empty else 0
+    st.metric("💰 إجمالي الإيرادات", f"{total:,.2f} {CURRENCY}")
+
+# =========================
+# حركة المخزون (صفحة مستقلة مضمونة الظهور)
+# =========================
+elif menu == "📋 حركة المخزون":
+    st.markdown("## 📋 سجل حركة المخزون")
+    
+    mov_df = pd.read_sql("SELECT * FROM inventory_movements ORDER BY date_time DESC", conn)
+    
+    if not mov_df.empty:
+        st.success(f"✅ تم تسجيل {len(mov_df)} حركة مخزون حتى الآن")
+        st.dataframe(mov_df, use_container_width=True)
+        
+        product_filter = st.selectbox("🔍 تصفية حسب المنتج", ["الكل"] + list(mov_df["product"].unique()))
+        if product_filter != "الكل":
+            filtered_mov = mov_df[mov_df["product"] == product_filter]
+            st.dataframe(filtered_mov, use_container_width=True)
+    else:
+        st.info("🎭 لا توجد حركات مخزون مسجلة بعد.")
+        st.markdown("""
+        **كيف تظهر الحركات؟**
+        1. أضف منتجًا جديدًا من صفحة **📦 إدارة المنتجات**.
+        2. قم بعملية بيع من صفحة **🛒 الكاشير**.
+        3. عد إلى هذه الصفحة مجددًا.
+        """)
+        if st.button("🔄 تأكيد وجود الجدول وإعادة تحميل الصفحة"):
+            if check_inventory_table():
+                st.warning("تم إنشاء الجدول للتو. أضف حركة جديدة.")
+            else:
+                st.success("الجدول موجود وجاهز. قم بإضافة منتج أو بيع.")
+            st.rerun()
+
+# =========================
+# تذييل الصفحة (مرتب)
+# =========================
+st.markdown("---")
+st.markdown("<div class='footer'>🎭 نظام المبيعات X | المسرحية المحاسبية - غيل باوزير © 2026<br>👨‍💻 تصميم وتطوير: سالم التريمي</div>", unsafe_allow_html=True)
+
+conn.close()
